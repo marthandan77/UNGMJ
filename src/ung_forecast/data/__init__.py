@@ -3,6 +3,7 @@
 from .cache import ParquetCache
 from .factory import build_market_data_provider
 from .provider import MarketDataProvider, YFinanceProvider
+from .runtime_loader import REQUIRED_INTERVALS, RuntimeDataSet, load_runtime_market_data
 from .schemas import DataProvenance, MarketDataBundle
 from .schwab import SchwabCredentials, SchwabMarketDataProvider, SchwabTokenProvider
 from .synchronizer import SynchronizedMarketData
@@ -14,11 +15,14 @@ __all__ = [
     "MarketDataBundle",
     "MarketDataProvider",
     "ParquetCache",
+    "REQUIRED_INTERVALS",
+    "RuntimeDataSet",
     "SchwabCredentials",
     "SchwabMarketDataProvider",
     "SchwabTokenProvider",
     "SynchronizedMarketData",
     "YFinanceProvider",
     "build_market_data_provider",
+    "load_runtime_market_data",
     "validate_ohlcv",
 ]
