@@ -16,8 +16,8 @@ Status values: `PENDING`, `IMPLEMENTED`, `TESTED`, `BLOCKED`.
 | AC-FEAT-001 | `src/ung_forecast/features/formulas.py`, `src/ung_forecast/features/engine.py` | `tests/features/test_engine.py` | IMPLEMENTED |
 | AC-FEAT-002 | `src/ung_forecast/features/engine.py` | `tests/features/test_engine.py` | IMPLEMENTED |
 | AC-FEAT-003 | `src/ung_forecast/features/formulas.py` | `tests/features/test_formulas.py`, `tests/features/test_engine.py` | IMPLEMENTED |
-| AC-LABEL-001 | `src/labels/triple_barrier.py` | `tests/labels/test_path_outcomes.py` | PENDING |
-| AC-LABEL-002 | `src/barriers/engine.py` | `tests/labels/test_barrier_parity.py` | PENDING |
+| AC-LABEL-001 | `src/ung_forecast/labels/triple_barrier.py` | `tests/labels/test_barriers_and_labels.py` | IMPLEMENTED |
+| AC-LABEL-002 | `src/ung_forecast/barriers/engine.py`, `src/ung_forecast/labels/triple_barrier.py` | `tests/labels/test_barriers_and_labels.py` | IMPLEMENTED |
 | AC-MODEL-001 | `src/ung_forecast/schemas.py` | `tests/test_foundation.py` | IMPLEMENTED |
 | AC-MODEL-002 | `src/models/elastic_net.py` | `tests/models/test_baseline_model.py` | PENDING |
 | AC-VAL-001..004 | `src/validation/walk_forward.py` | `tests/validation/test_no_leakage.py` | PENDING |
