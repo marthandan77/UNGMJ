@@ -27,6 +27,8 @@ jobs:
         run: set -o pipefail; pytest --cov=ung_forecast --cov-report=term-missing --junitxml=pytest-report.xml | tee pytest-output.txt
       - name: Import smoke test
         run: python -c "import ung_forecast; import app"
+      - name: Generate compliance report
+        run: python tools/compliance_report.py
       - name: Upload quality reports
         if: always()
         uses: actions/upload-artifact@v4
@@ -37,4 +39,6 @@ jobs:
             mypy-report.txt
             pytest-report.xml
             pytest-output.txt
+            reports/build_compliance_report.md
+            reports/build_compliance_report.json
           if-no-files-found: warn
