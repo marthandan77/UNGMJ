@@ -57,5 +57,12 @@ strict = true
 packages = ["ung_forecast"]
 
 [[tool.mypy.overrides]]
-module = ["yfinance", "yfinance.*"]
+module = [
+  "joblib",
+  "joblib.*",
+  "sklearn",
+  "sklearn.*",
+  "yfinance",
+  "yfinance.*",
+]
 ignore_missing_imports = true
