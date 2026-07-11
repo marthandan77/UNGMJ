@@ -27,6 +27,12 @@ class LabelResult:
     maximum_downward_excursion: float
 
 
+def _event_timestamp(value: object) -> pd.Timestamp:
+    if not isinstance(value, pd.Timestamp):
+        raise TypeError("Future path index must contain pandas Timestamp values")
+    return value
+
+
 def label_future_path(
     future_bars: pd.DataFrame,
     *,
@@ -62,13 +68,14 @@ def label_future_path(
     maximum_downside = float(barriers.current_price - observed["Low"].min())
 
     for offset, (timestamp, row) in enumerate(observed.iterrows(), start=1):
+        event_time = _event_timestamp(timestamp)
         hit_upper = float(row["High"]) >= barriers.upper_price
         hit_lower = float(row["Low"]) <= barriers.lower_price
         if hit_upper and hit_lower:
             return LabelResult(
                 outcome=None,
                 status=LabelStatus.AMBIGUOUS,
-                event_timestamp=pd.Timestamp(timestamp),
+                event_timestamp=event_time,
                 time_to_event_bars=offset,
                 maximum_upward_excursion=maximum_upside,
                 maximum_downward_excursion=maximum_downside,
@@ -77,7 +84,7 @@ def label_future_path(
             return LabelResult(
                 outcome=OutcomeClass.LOWER_FIRST,
                 status=LabelStatus.VALID,
-                event_timestamp=pd.Timestamp(timestamp),
+                event_timestamp=event_time,
                 time_to_event_bars=offset,
                 maximum_upward_excursion=maximum_upside,
                 maximum_downward_excursion=maximum_downside,
@@ -86,7 +93,7 @@ def label_future_path(
             return LabelResult(
                 outcome=OutcomeClass.UPPER_FIRST,
                 status=LabelStatus.VALID,
-                event_timestamp=pd.Timestamp(timestamp),
+                event_timestamp=event_time,
                 time_to_event_bars=offset,
                 maximum_upward_excursion=maximum_upside,
                 maximum_downward_excursion=maximum_downside,
