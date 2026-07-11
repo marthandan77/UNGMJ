@@ -9,7 +9,6 @@ import pandas as pd
 from sklearn.isotonic import IsotonicRegression
 from sklearn.linear_model import LogisticRegression
 
-from ung_forecast.schemas import OutcomeClass
 from ung_forecast.validation.metrics import CLASS_ORDER
 
 
