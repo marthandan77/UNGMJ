@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from zoneinfo import ZoneInfo
 
 import pandas as pd
 
@@ -30,8 +29,6 @@ class ParquetCache:
             bundle.provenance.interval,
         )
         frame = bundle.frame.sort_index().copy()
-        if isinstance(frame.index, pd.DatetimeIndex) and frame.index.tz is not None:
-            frame.index = frame.index.tz_convert(ZoneInfo(bundle.provenance.normalized_timezone))
         frame.to_parquet(data_path)
 
         provenance = bundle.provenance.model_copy(update={"cache_path": data_path})
@@ -49,6 +46,4 @@ class ParquetCache:
         raw_metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
         provenance = DataProvenance.model_validate(raw_metadata)
         frame = pd.read_parquet(data_path)
-        if isinstance(frame.index, pd.DatetimeIndex) and frame.index.tz is not None:
-            frame.index = frame.index.tz_convert(ZoneInfo(provenance.normalized_timezone))
         return MarketDataBundle(frame=frame, provenance=provenance)
