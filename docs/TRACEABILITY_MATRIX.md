@@ -13,9 +13,9 @@ Status values: `PENDING`, `IMPLEMENTED`, `TESTED`, `BLOCKED`.
 | AC-DATA-007 | `src/models/registry.py` | `tests/models/test_ng_fallback.py` | PENDING |
 | AC-HOR-001..005 | `src/ung_forecast/horizons.py` | `tests/test_foundation.py` | IMPLEMENTED |
 | AC-HOR-006 | `src/models/registry.py` | `tests/models/test_independent_horizons.py` | PENDING |
-| AC-FEAT-001 | `src/features/library.py` | `tests/features/test_training_live_parity.py` | PENDING |
-| AC-FEAT-002 | `src/features/audit.py` | `tests/features/test_no_future_sources.py` | PENDING |
-| AC-FEAT-003 | `src/features/library.py` | `tests/features/test_no_centered_windows.py` | PENDING |
+| AC-FEAT-001 | `src/ung_forecast/features/formulas.py`, `src/ung_forecast/features/engine.py` | `tests/features/test_engine.py` | IMPLEMENTED |
+| AC-FEAT-002 | `src/ung_forecast/features/engine.py` | `tests/features/test_engine.py` | IMPLEMENTED |
+| AC-FEAT-003 | `src/ung_forecast/features/formulas.py` | `tests/features/test_formulas.py`, `tests/features/test_engine.py` | IMPLEMENTED |
 | AC-LABEL-001 | `src/labels/triple_barrier.py` | `tests/labels/test_path_outcomes.py` | PENDING |
 | AC-LABEL-002 | `src/barriers/engine.py` | `tests/labels/test_barrier_parity.py` | PENDING |
 | AC-MODEL-001 | `src/ung_forecast/schemas.py` | `tests/test_foundation.py` | IMPLEMENTED |
