@@ -54,14 +54,14 @@ HORIZON_SPECS: dict[HorizonKey, HorizonSpec] = {
     ),
     HorizonKey.DAY_1: HorizonSpec(
         key=HorizonKey.DAY_1,
-        source_interval="1h",
+        source_interval="1d",
         bars_ahead=None,
         complete_sessions_ahead=1,
         display_name="Next complete trading day",
     ),
     HorizonKey.DAYS_2: HorizonSpec(
         key=HorizonKey.DAYS_2,
-        source_interval="1h",
+        source_interval="1d",
         bars_ahead=None,
         complete_sessions_ahead=2,
         display_name="Next 2 trading days",
