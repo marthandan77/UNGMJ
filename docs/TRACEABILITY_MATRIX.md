@@ -20,8 +20,8 @@ Status values: `PENDING`, `IMPLEMENTED`, `TESTED`, `BLOCKED`.
 | AC-LABEL-002 | `src/ung_forecast/barriers/engine.py`, `src/ung_forecast/labels/triple_barrier.py` | `tests/labels/test_barriers_and_labels.py` | IMPLEMENTED |
 | AC-MODEL-001 | `src/ung_forecast/schemas.py`, `src/ung_forecast/models/elastic_net.py` | `tests/test_foundation.py`, `tests/models/test_models.py` | IMPLEMENTED |
 | AC-MODEL-002 | `src/ung_forecast/models/elastic_net.py` | `tests/models/test_models.py` | IMPLEMENTED |
-| AC-VAL-001..004 | `src/ung_forecast/validation/walk_forward.py` | `tests/validation/test_walk_forward.py` | IMPLEMENTED |
-| AC-VAL-005..006 | `src/validation/approval.py` | `tests/validation/test_approval_gate.py` | PENDING |
+| AC-VAL-001..004 | `src/ung_forecast/validation/walk_forward.py`, `src/ung_forecast/validation/purge.py`, `src/ung_forecast/models/calibration.py` | `tests/validation/test_walk_forward.py`, `tests/validation/test_label_end_purge.py`, `tests/validation/test_metrics_and_approval.py` | IMPLEMENTED |
+| AC-VAL-005..006 | `src/ung_forecast/validation/metrics.py`, `src/ung_forecast/validation/approval.py` | `tests/validation/test_metrics_and_approval.py` | IMPLEMENTED |
 | AC-DEC-001..004 | `src/ung_forecast/decision/expected_value.py` | `tests/decision/test_expected_value_and_confidence.py` | IMPLEMENTED |
 | AC-CONF-001 | `src/ung_forecast/confidence/engine.py` | `tests/decision/test_expected_value_and_confidence.py` | IMPLEMENTED |
 | AC-EXP-001..003 | `src/explanations/renderer.py` | `tests/explanations/test_traceable_templates.py` | PENDING |
