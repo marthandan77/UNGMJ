@@ -54,18 +54,18 @@ def load_runtime_market_data(
                 period="",
                 as_of=as_of,
             )
-            cached_bundle = cache.write(live_bundle)
+            stored_bundle = cache.write(live_bundle)
         except Exception as exc:
             errors[interval] = f"{type(exc).__name__}: {exc}"
             if not allow_cache_fallback:
                 continue
-            cached_bundle = cache.read(symbol, interval)
-            if cached_bundle is None:
+            fallback_bundle = cache.read(symbol, interval)
+            if fallback_bundle is None:
                 continue
-            bundles[interval] = cached_bundle
+            bundles[interval] = fallback_bundle
             sources[interval] = "cache_fallback"
         else:
-            bundles[interval] = cached_bundle
+            bundles[interval] = stored_bundle
             sources[interval] = "live"
 
     return RuntimeDataSet(
