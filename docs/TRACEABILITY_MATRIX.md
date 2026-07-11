@@ -22,8 +22,8 @@ Status values: `PENDING`, `IMPLEMENTED`, `TESTED`, `BLOCKED`.
 | AC-MODEL-002 | `src/ung_forecast/models/elastic_net.py` | `tests/models/test_models.py` | IMPLEMENTED |
 | AC-VAL-001..004 | `src/ung_forecast/validation/walk_forward.py` | `tests/validation/test_walk_forward.py` | IMPLEMENTED |
 | AC-VAL-005..006 | `src/validation/approval.py` | `tests/validation/test_approval_gate.py` | PENDING |
-| AC-DEC-001..004 | `src/decision/expected_value.py` | `tests/decision/test_expected_value_advice.py` | PENDING |
-| AC-CONF-001 | `src/confidence/engine.py` | `tests/confidence/test_confidence_formula.py` | PENDING |
+| AC-DEC-001..004 | `src/ung_forecast/decision/expected_value.py` | `tests/decision/test_expected_value_and_confidence.py` | IMPLEMENTED |
+| AC-CONF-001 | `src/ung_forecast/confidence/engine.py` | `tests/decision/test_expected_value_and_confidence.py` | IMPLEMENTED |
 | AC-EXP-001..003 | `src/explanations/renderer.py` | `tests/explanations/test_traceable_templates.py` | PENDING |
 | AC-CROSS-001..002 | `src/coordinator/cross_horizon.py` | `tests/coordinator/test_no_probability_mutation.py` | PENDING |
 | AC-LEARN-001..004 | `src/learning/champion_challenger.py` | `tests/learning/test_promotion_controls.py` | PENDING |
