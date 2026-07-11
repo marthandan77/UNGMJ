@@ -30,7 +30,7 @@ from ung_forecast.validation.metrics import (
     multiclass_log_loss,
 )
 from ung_forecast.validation.purge import purge_overlapping_training_rows
-from ung_forecast.validation.walk_forward import WalkForwardFold, generate_walk_forward_folds
+from ung_forecast.validation.walk_forward import generate_walk_forward_folds
 
 EconomicValueEvaluator = Callable[[pd.Series, pd.DataFrame, pd.DataFrame], float]
 
