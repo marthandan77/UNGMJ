@@ -15,6 +15,7 @@ dependencies = [
   "pyarrow>=16,<20",
   "pydantic>=2.8,<3",
   "PyYAML>=6.0,<7",
+  "requests>=2.32,<3",
   "scikit-learn>=1.5,<2",
   "streamlit>=1.36,<2",
   "yfinance>=0.2.40,<1",
@@ -28,6 +29,7 @@ dev = [
   "pytest-cov>=5,<7",
   "ruff>=0.5,<1",
   "types-PyYAML>=6.0,<7",
+  "types-requests>=2.32,<3",
 ]
 
 [tool.hatch.build.targets.wheel]
