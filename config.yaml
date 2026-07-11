@@ -5,6 +5,6 @@ data:
   primary_symbol: UNG
   comparison_symbol: NG=F
   timezone: America/New_York
-  provider: yfinance
+  provider: schwab
   adjusted_prices: false
   cache_directory: data/cache
