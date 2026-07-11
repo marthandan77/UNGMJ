@@ -34,17 +34,21 @@ def multiclass_brier_score(target: pd.Series, probabilities: pd.DataFrame) -> fl
 
 
 def multiclass_log_loss(target: pd.Series, probabilities: pd.DataFrame) -> float:
-    aligned = probabilities.reindex(target.index)
+    aligned = probabilities.reindex(target.index).loc[:, CLASS_ORDER].astype(float)
     if aligned.isna().any().any():
         raise ValueError("Target and probability indices must align")
     target_values = target.astype(str)
     invalid = set(target_values.unique()).difference(CLASS_ORDER)
     if invalid:
         raise ValueError(f"Unknown target classes: {sorted(invalid)}")
-    selected = np.array(
-        [float(aligned.at[index, class_name]) for index, class_name in target_values.items()],
-        dtype=float,
+    class_positions = {class_name: position for position, class_name in enumerate(CLASS_ORDER)}
+    target_positions = np.fromiter(
+        (class_positions[class_name] for class_name in target_values.to_numpy()),
+        dtype=np.int64,
+        count=len(target_values),
     )
+    matrix = aligned.to_numpy(dtype=float)
+    selected = matrix[np.arange(len(matrix)), target_positions]
     selected = np.clip(selected, 1e-15, 1.0)
     return float(-np.log(selected).mean())
 
