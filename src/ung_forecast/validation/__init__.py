@@ -3,8 +3,12 @@
 from .approval import (
     ApprovalCriteria,
     ApprovalDecision,
+    StatisticalApprovalCriteria,
+    TradingApprovalCriteria,
     ValidationMetrics,
     evaluate_approval,
+    evaluate_statistical_approval,
+    evaluate_trading_approval,
 )
 from .metrics import (
     class_frequency_baseline,
@@ -18,10 +22,14 @@ from .walk_forward import WalkForwardFold, generate_walk_forward_folds
 __all__ = [
     "ApprovalCriteria",
     "ApprovalDecision",
+    "StatisticalApprovalCriteria",
+    "TradingApprovalCriteria",
     "ValidationMetrics",
     "WalkForwardFold",
     "class_frequency_baseline",
     "evaluate_approval",
+    "evaluate_statistical_approval",
+    "evaluate_trading_approval",
     "expected_calibration_error",
     "generate_walk_forward_folds",
     "multiclass_brier_score",
