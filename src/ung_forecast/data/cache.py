@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
 
@@ -32,8 +33,17 @@ class ParquetCache:
         frame.to_parquet(data_path)
 
         provenance = bundle.provenance.model_copy(update={"cache_path": data_path})
+        index_timezone = (
+            str(frame.index.tz)
+            if isinstance(frame.index, pd.DatetimeIndex) and frame.index.tz is not None
+            else None
+        )
+        metadata = {
+            "provenance": provenance.model_dump(mode="json"),
+            "index_timezone": index_timezone,
+        }
         metadata_path.write_text(
-            json.dumps(provenance.model_dump(mode="json"), indent=2, sort_keys=True),
+            json.dumps(metadata, indent=2, sort_keys=True),
             encoding="utf-8",
         )
         return MarketDataBundle(frame=frame, provenance=provenance)
@@ -43,7 +53,15 @@ class ParquetCache:
         if not data_path.exists() or not metadata_path.exists():
             return None
 
-        raw_metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
-        provenance = DataProvenance.model_validate(raw_metadata)
+        raw_metadata: dict[str, Any] = json.loads(metadata_path.read_text(encoding="utf-8"))
+        provenance_payload = raw_metadata.get("provenance", raw_metadata)
+        provenance = DataProvenance.model_validate(provenance_payload)
         frame = pd.read_parquet(data_path)
+        index_timezone = raw_metadata.get("index_timezone")
+        if (
+            isinstance(index_timezone, str)
+            and isinstance(frame.index, pd.DatetimeIndex)
+            and frame.index.tz is not None
+        ):
+            frame.index = frame.index.tz_convert(index_timezone)
         return MarketDataBundle(frame=frame, provenance=provenance)
