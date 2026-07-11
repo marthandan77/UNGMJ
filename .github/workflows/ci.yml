@@ -17,23 +17,15 @@ jobs:
       - name: Install
         run: python -m pip install --upgrade pip && pip install -e ".[dev]"
       - name: Ruff
-        id: ruff
-        continue-on-error: true
         shell: bash
         run: set -o pipefail; ruff check . --output-format=concise | tee ruff-report.txt
       - name: Mypy
-        id: mypy
-        continue-on-error: true
         shell: bash
         run: set -o pipefail; mypy | tee mypy-report.txt
       - name: Tests
-        id: tests
-        continue-on-error: true
         shell: bash
         run: set -o pipefail; pytest --cov=ung_forecast --cov-report=term-missing --junitxml=pytest-report.xml | tee pytest-output.txt
       - name: Import smoke test
-        id: smoke
-        continue-on-error: true
         run: python -c "import ung_forecast; import app"
       - name: Upload quality reports
         if: always()
@@ -46,10 +38,3 @@ jobs:
             pytest-report.xml
             pytest-output.txt
           if-no-files-found: warn
-      - name: Enforce quality gate
-        if: always()
-        run: |
-          test "${{ steps.ruff.outcome }}" = "success"
-          test "${{ steps.mypy.outcome }}" = "success"
-          test "${{ steps.tests.outcome }}" = "success"
-          test "${{ steps.smoke.outcome }}" = "success"
