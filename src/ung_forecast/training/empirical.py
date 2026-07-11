@@ -80,6 +80,12 @@ def _evaluate_metrics(target: pd.Series, probabilities: pd.DataFrame) -> Validat
     )
 
 
+def _datetime_feature_index(dataset: TrainingDataset) -> pd.DatetimeIndex:
+    if not isinstance(dataset.features.index, pd.DatetimeIndex):
+        raise ValueError("Empirical evaluation requires a DatetimeIndex")
+    return dataset.features.index
+
+
 def run_empirical_evaluation(
     dataset: TrainingDataset,
     *,
@@ -88,6 +94,7 @@ def run_empirical_evaluation(
     approval_criteria: StatisticalApprovalCriteria | None = None,
 ) -> EmpiricalRunResult:
     criteria = approval_criteria or StatisticalApprovalCriteria()
+    feature_index = _datetime_feature_index(dataset)
     folds = generate_walk_forward_folds(
         sample_count=len(dataset.features),
         minimum_train_size=run_config.minimum_train_size,
@@ -103,9 +110,9 @@ def run_empirical_evaluation(
     aggregate_baseline_probabilities: list[pd.DataFrame] = []
 
     for fold_number, fold in enumerate(folds, start=1):
-        train_index = dataset.features.index[list(fold.train)]
-        validation_index = dataset.features.index[list(fold.validation)]
-        test_index = dataset.features.index[list(fold.test)]
+        train_index = feature_index[list(fold.train)]
+        validation_index = feature_index[list(fold.validation)]
+        test_index = feature_index[list(fold.test)]
         train_index = purge_overlapping_training_rows(
             train_index,
             dataset.label_end_time,
