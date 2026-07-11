@@ -11,8 +11,8 @@ class ValidationMetrics:
     brier_score: float
     log_loss: float
     calibration_error: float
+    economic_value: float
     sample_count: int
-    economic_value: float = float("nan")
 
 
 @dataclass(frozen=True, slots=True)
