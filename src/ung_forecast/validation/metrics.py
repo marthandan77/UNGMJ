@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
-from sklearn.metrics import log_loss
 
 from ung_forecast.schemas import OutcomeClass
 
@@ -38,7 +37,16 @@ def multiclass_log_loss(target: pd.Series, probabilities: pd.DataFrame) -> float
     aligned = probabilities.reindex(target.index)
     if aligned.isna().any().any():
         raise ValueError("Target and probability indices must align")
-    return float(log_loss(target.astype(str), aligned, labels=CLASS_ORDER))
+    target_values = target.astype(str)
+    invalid = set(target_values.unique()).difference(CLASS_ORDER)
+    if invalid:
+        raise ValueError(f"Unknown target classes: {sorted(invalid)}")
+    selected = np.array(
+        [float(aligned.at[index, class_name]) for index, class_name in target_values.items()],
+        dtype=float,
+    )
+    selected = np.clip(selected, 1e-15, 1.0)
+    return float(-np.log(selected).mean())
 
 
 def expected_calibration_error(
