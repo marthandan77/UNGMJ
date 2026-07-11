@@ -43,7 +43,7 @@ def build_training_dataset(
     end_times: list[pd.Timestamp] = []
     metadata_rows: list[dict[str, object]] = []
 
-    for position, timestamp in enumerate(common):
+    for timestamp in common:
         feature_row = feature_frame.loc[timestamp]
         sigma = volatility.loc[timestamp]
         if feature_row.isna().any() or pd.isna(sigma) or float(sigma) <= 0:
