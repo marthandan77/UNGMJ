@@ -21,13 +21,13 @@ jobs:
         run: |
           set -o pipefail
           ruff --version | tee ruff-version.txt
-          ruff check . --output-format=concise | tee ruff-report.txt
+          ruff check . --output-format=concise 2>&1 | tee ruff-report.txt
       - name: Mypy
         shell: bash
-        run: set -o pipefail; mypy | tee mypy-report.txt
+        run: set -o pipefail; mypy 2>&1 | tee mypy-report.txt
       - name: Tests
         shell: bash
-        run: set -o pipefail; pytest --cov=ung_forecast --cov-report=term-missing --junitxml=pytest-report.xml | tee pytest-output.txt
+        run: set -o pipefail; pytest --cov=ung_forecast --cov-report=term-missing --junitxml=pytest-report.xml 2>&1 | tee pytest-output.txt
       - name: Import smoke test
         run: python -c "import ung_forecast; import app"
       - name: Generate compliance report
