@@ -24,8 +24,8 @@ Status values: `PENDING`, `IMPLEMENTED`, `TESTED`, `BLOCKED`.
 | AC-VAL-005..006 | `src/ung_forecast/validation/metrics.py`, `src/ung_forecast/validation/approval.py` | `tests/validation/test_metrics_and_approval.py` | IMPLEMENTED |
 | AC-DEC-001..004 | `src/ung_forecast/decision/expected_value.py` | `tests/decision/test_expected_value_and_confidence.py` | IMPLEMENTED |
 | AC-CONF-001 | `src/ung_forecast/confidence/engine.py` | `tests/decision/test_expected_value_and_confidence.py` | IMPLEMENTED |
-| AC-EXP-001..003 | `src/explanations/renderer.py` | `tests/explanations/test_traceable_templates.py` | PENDING |
-| AC-CROSS-001..002 | `src/coordinator/cross_horizon.py` | `tests/coordinator/test_no_probability_mutation.py` | PENDING |
+| AC-EXP-001..003 | `src/ung_forecast/explanations/renderer.py` | `tests/explanations/test_renderer.py` | IMPLEMENTED |
+| AC-CROSS-001..002 | `src/ung_forecast/coordinator/cross_horizon.py` | `tests/coordinator/test_cross_horizon.py` | IMPLEMENTED |
 | AC-LEARN-001..004 | `src/learning/champion_challenger.py` | `tests/learning/test_promotion_controls.py` | PENDING |
 | AC-UI-001..004 | `dashboard/` | `tests/dashboard/test_render_contract.py` | PENDING |
 | AC-DEL-001..004 | `tools/compliance_report.py` | `tests/compliance/test_traceability.py` | PENDING |
