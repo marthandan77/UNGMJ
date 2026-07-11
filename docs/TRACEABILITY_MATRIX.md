@@ -11,14 +11,14 @@ Status values: `PENDING`, `IMPLEMENTED`, `TESTED`, `BLOCKED`.
 | AC-DATA-005 | `src/data/schemas.py` | `tests/data/test_provenance.py` | PENDING |
 | AC-DATA-006 | `src/data/adjustments.py` | `tests/data/test_adjustment_policy.py` | PENDING |
 | AC-DATA-007 | `src/models/registry.py` | `tests/models/test_ng_fallback.py` | PENDING |
-| AC-HOR-001..005 | `src/horizons/specifications.py` | `tests/horizons/test_definitions.py` | PENDING |
+| AC-HOR-001..005 | `src/ung_forecast/horizons.py` | `tests/test_foundation.py` | IMPLEMENTED |
 | AC-HOR-006 | `src/models/registry.py` | `tests/models/test_independent_horizons.py` | PENDING |
 | AC-FEAT-001 | `src/features/library.py` | `tests/features/test_training_live_parity.py` | PENDING |
 | AC-FEAT-002 | `src/features/audit.py` | `tests/features/test_no_future_sources.py` | PENDING |
 | AC-FEAT-003 | `src/features/library.py` | `tests/features/test_no_centered_windows.py` | PENDING |
 | AC-LABEL-001 | `src/labels/triple_barrier.py` | `tests/labels/test_path_outcomes.py` | PENDING |
 | AC-LABEL-002 | `src/barriers/engine.py` | `tests/labels/test_barrier_parity.py` | PENDING |
-| AC-MODEL-001 | `src/models/probability.py` | `tests/models/test_probability_contract.py` | PENDING |
+| AC-MODEL-001 | `src/ung_forecast/schemas.py` | `tests/test_foundation.py` | IMPLEMENTED |
 | AC-MODEL-002 | `src/models/elastic_net.py` | `tests/models/test_baseline_model.py` | PENDING |
 | AC-VAL-001..004 | `src/validation/walk_forward.py` | `tests/validation/test_no_leakage.py` | PENDING |
 | AC-VAL-005..006 | `src/validation/approval.py` | `tests/validation/test_approval_gate.py` | PENDING |
