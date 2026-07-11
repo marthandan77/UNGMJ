@@ -16,6 +16,8 @@ import requests
 from .schemas import DataProvenance, MarketDataBundle
 from .validator import validate_ohlcv
 
+RequestValue = str | int | float
+
 
 class HttpResponse(Protocol):
     def raise_for_status(self) -> None: ...
@@ -29,7 +31,7 @@ class HttpClient(Protocol):
         url: str,
         *,
         headers: dict[str, str],
-        params: dict[str, Any],
+        params: dict[str, RequestValue],
         timeout: float,
     ) -> HttpResponse: ...
 
@@ -148,7 +150,7 @@ class SchwabMarketDataProvider:
         period: str = "",
         as_of: datetime | None = None,
     ) -> MarketDataBundle:
-        del period  # Schwab uses explicit periodType/period parameters.
+        del period
         effective_as_of = as_of or datetime.now(UTC)
         if effective_as_of.tzinfo is None:
             raise ValueError("as_of must be timezone-aware")
@@ -158,18 +160,19 @@ class SchwabMarketDataProvider:
             raise ValueError(f"Schwab interval is not supported: {interval}") from exc
 
         token = self.token_provider.get_access_token(now=effective_as_of)
+        params: dict[str, RequestValue] = {
+            "symbol": symbol,
+            "periodType": request.period_type,
+            "period": request.period,
+            "frequencyType": request.frequency_type,
+            "frequency": request.frequency,
+            "needExtendedHoursData": "false",
+            "needPreviousClose": "true",
+        }
         response = self.http_client.get(
             f"{self.base_url}/pricehistory",
             headers={"Authorization": f"Bearer {token}", "Accept": "application/json"},
-            params={
-                "symbol": symbol,
-                "periodType": request.period_type,
-                "period": request.period,
-                "frequencyType": request.frequency_type,
-                "frequency": request.frequency,
-                "needExtendedHoursData": "false",
-                "needPreviousClose": "true",
-            },
+            params=params,
             timeout=self.timeout,
         )
         response.raise_for_status()
