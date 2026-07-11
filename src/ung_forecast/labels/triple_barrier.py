@@ -23,8 +23,8 @@ class LabelResult:
     status: LabelStatus
     event_timestamp: pd.Timestamp | None
     time_to_event_bars: int | None
-    maximum_favourable_excursion: float
-    maximum_adverse_excursion: float
+    maximum_upward_excursion: float
+    maximum_downward_excursion: float
 
 
 def label_future_path(
@@ -54,8 +54,8 @@ def label_future_path(
             status=LabelStatus.INSUFFICIENT_PATH,
             event_timestamp=None,
             time_to_event_bars=None,
-            maximum_favourable_excursion=float("nan"),
-            maximum_adverse_excursion=float("nan"),
+            maximum_upward_excursion=float("nan"),
+            maximum_downward_excursion=float("nan"),
         )
 
     maximum_upside = float(observed["High"].max() - barriers.current_price)
@@ -70,8 +70,8 @@ def label_future_path(
                 status=LabelStatus.AMBIGUOUS,
                 event_timestamp=pd.Timestamp(timestamp),
                 time_to_event_bars=offset,
-                maximum_favourable_excursion=maximum_downside,
-                maximum_adverse_excursion=maximum_upside,
+                maximum_upward_excursion=maximum_upside,
+                maximum_downward_excursion=maximum_downside,
             )
         if hit_lower:
             return LabelResult(
@@ -79,8 +79,8 @@ def label_future_path(
                 status=LabelStatus.VALID,
                 event_timestamp=pd.Timestamp(timestamp),
                 time_to_event_bars=offset,
-                maximum_favourable_excursion=maximum_downside,
-                maximum_adverse_excursion=maximum_upside,
+                maximum_upward_excursion=maximum_upside,
+                maximum_downward_excursion=maximum_downside,
             )
         if hit_upper:
             return LabelResult(
@@ -88,8 +88,8 @@ def label_future_path(
                 status=LabelStatus.VALID,
                 event_timestamp=pd.Timestamp(timestamp),
                 time_to_event_bars=offset,
-                maximum_favourable_excursion=maximum_upside,
-                maximum_adverse_excursion=maximum_downside,
+                maximum_upward_excursion=maximum_upside,
+                maximum_downward_excursion=maximum_downside,
             )
 
     return LabelResult(
@@ -97,6 +97,6 @@ def label_future_path(
         status=LabelStatus.VALID,
         event_timestamp=None,
         time_to_event_bars=required_bars,
-        maximum_favourable_excursion=maximum_upside,
-        maximum_adverse_excursion=maximum_downside,
+        maximum_upward_excursion=maximum_upside,
+        maximum_downward_excursion=maximum_downside,
     )
