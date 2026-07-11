@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+
+# Streamlit secrets
+.streamlit/secrets.toml
+
+# Runtime data and model artifacts
+data/cache/
+data/forecast_history.jsonl
+artifacts/
+reports/*.json
+reports/*.md
+
+# Local environment
+.env
+.env.*
+!.env.example
