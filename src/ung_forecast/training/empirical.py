@@ -1,11 +1,12 @@
 """Empirical walk-forward evaluation for one prebuilt horizon dataset.
 
-This runner performs statistical approval only. Trading approval is a separate
-stage requiring an explicit execution model and shadow observations.
+Statistical approval remains independent. The legacy ``approved`` field is a
+combined research gate and cannot pass without an explicit economic evaluator.
 """
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 
 import numpy as np
@@ -15,6 +16,7 @@ from ung_forecast.models.calibration import CalibrationConfig, MulticlassProbabi
 from ung_forecast.models.elastic_net import ElasticNetConfig, ElasticNetMultinomialModel
 from ung_forecast.training.dataset import TrainingDataset
 from ung_forecast.validation.approval import (
+    ApprovalCriteria,
     ApprovalDecision,
     StatisticalApprovalCriteria,
     ValidationMetrics,
@@ -29,6 +31,8 @@ from ung_forecast.validation.metrics import (
 )
 from ung_forecast.validation.purge import purge_overlapping_training_rows
 from ung_forecast.validation.walk_forward import generate_walk_forward_folds
+
+EconomicValueEvaluator = Callable[[pd.Series, pd.DataFrame, pd.DataFrame], float]
 
 
 @dataclass(frozen=True, slots=True)
@@ -53,6 +57,7 @@ class FoldMetrics:
 class EmpiricalRunResult:
     folds: tuple[FoldMetrics, ...]
     statistically_approved: bool
+    approved: bool
     approval_reasons: tuple[str, ...]
     aggregate_model: ValidationMetrics
     aggregate_baseline: ValidationMetrics
@@ -70,12 +75,22 @@ def _probability_frame(model: ElasticNetMultinomialModel, features: pd.DataFrame
     return pd.DataFrame(rows, index=features.index, columns=CLASS_ORDER)
 
 
-def _evaluate_metrics(target: pd.Series, probabilities: pd.DataFrame) -> ValidationMetrics:
+def _evaluate_metrics(
+    target: pd.Series,
+    probabilities: pd.DataFrame,
+    metadata: pd.DataFrame,
+    economic_evaluator: EconomicValueEvaluator | None,
+) -> ValidationMetrics:
+    economic_value = (
+        float(economic_evaluator(target, probabilities, metadata))
+        if economic_evaluator is not None
+        else float("nan")
+    )
     return ValidationMetrics(
         brier_score=multiclass_brier_score(target, probabilities),
         log_loss=multiclass_log_loss(target, probabilities),
         calibration_error=expected_calibration_error(target, probabilities),
-        economic_value=float("nan"),
+        economic_value=economic_value,
         sample_count=len(target),
     )
 
@@ -92,6 +107,7 @@ def run_empirical_evaluation(
     run_config: EmpiricalRunConfig,
     model_config: ElasticNetConfig | None = None,
     approval_criteria: StatisticalApprovalCriteria | None = None,
+    economic_evaluator: EconomicValueEvaluator | None = None,
 ) -> EmpiricalRunResult:
     criteria = approval_criteria or StatisticalApprovalCriteria()
     feature_index = _datetime_feature_index(dataset)
@@ -108,6 +124,7 @@ def run_empirical_evaluation(
     aggregate_targets: list[pd.Series] = []
     aggregate_model_probabilities: list[pd.DataFrame] = []
     aggregate_baseline_probabilities: list[pd.DataFrame] = []
+    aggregate_metadata: list[pd.DataFrame] = []
 
     for fold_number, fold in enumerate(folds, start=1):
         train_index = feature_index[list(fold.train)]
@@ -133,36 +150,73 @@ def run_empirical_evaluation(
             _probability_frame(model, dataset.features.loc[test_index])
         )
         test_target = dataset.target.loc[test_index]
+        test_metadata = dataset.metadata.loc[test_index]
         training_baseline = class_frequency_baseline(dataset.target.loc[train_index]).iloc[0]
         baseline_probabilities = pd.DataFrame(
             np.tile(training_baseline.to_numpy(), (len(test_index), 1)),
             index=test_index,
             columns=CLASS_ORDER,
         )
-        model_metrics = _evaluate_metrics(test_target, test_probabilities)
-        baseline_metrics = _evaluate_metrics(test_target, baseline_probabilities)
+        model_metrics = _evaluate_metrics(
+            test_target,
+            test_probabilities,
+            test_metadata,
+            economic_evaluator,
+        )
+        baseline_metrics = _evaluate_metrics(
+            test_target,
+            baseline_probabilities,
+            test_metadata,
+            economic_evaluator,
+        )
         approval = evaluate_statistical_approval(model_metrics, baseline_metrics, criteria)
         fold_results.append(FoldMetrics(fold_number, model_metrics, baseline_metrics, approval))
         aggregate_targets.append(test_target)
         aggregate_model_probabilities.append(test_probabilities)
         aggregate_baseline_probabilities.append(baseline_probabilities)
+        aggregate_metadata.append(test_metadata)
 
     combined_target = pd.concat(aggregate_targets)
-    aggregate_model = _evaluate_metrics(combined_target, pd.concat(aggregate_model_probabilities))
+    combined_metadata = pd.concat(aggregate_metadata)
+    aggregate_model = _evaluate_metrics(
+        combined_target,
+        pd.concat(aggregate_model_probabilities),
+        combined_metadata,
+        economic_evaluator,
+    )
     aggregate_baseline = _evaluate_metrics(
-        combined_target, pd.concat(aggregate_baseline_probabilities)
+        combined_target,
+        pd.concat(aggregate_baseline_probabilities),
+        combined_metadata,
+        economic_evaluator,
     )
     aggregate_approval = evaluate_statistical_approval(
-        aggregate_model, aggregate_baseline, criteria
+        aggregate_model,
+        aggregate_baseline,
+        criteria,
     )
     all_folds_approved = all(item.statistical_approval.approved for item in fold_results)
+    statistically_approved = aggregate_approval.approved and all_folds_approved
     reasons = list(aggregate_approval.reasons)
     if not all_folds_approved:
         reasons.append("one_or_more_walk_forward_folds_failed")
 
+    if economic_evaluator is None:
+        approved = False
+        reasons.append("economic_evaluator_not_configured")
+    else:
+        minimum_economic_value = (
+            criteria.minimum_economic_value if isinstance(criteria, ApprovalCriteria) else 0.0
+        )
+        economic_approved = aggregate_model.economic_value > minimum_economic_value
+        approved = statistically_approved and economic_approved
+        if not economic_approved:
+            reasons.append("economic_value_not_positive")
+
     return EmpiricalRunResult(
         folds=tuple(fold_results),
-        statistically_approved=aggregate_approval.approved and all_folds_approved,
+        statistically_approved=statistically_approved,
+        approved=approved,
         approval_reasons=tuple(dict.fromkeys(reasons)),
         aggregate_model=aggregate_model,
         aggregate_baseline=aggregate_baseline,
