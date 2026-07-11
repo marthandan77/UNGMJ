@@ -10,9 +10,8 @@ from datetime import UTC, datetime
 from typing import Any
 
 import streamlit as st
-
 from ung_forecast.configuration import load_config
-from ung_forecast.data import build_market_data_provider
+from ung_forecast.data import MarketDataProvider, build_market_data_provider
 from ung_forecast.horizons import HORIZON_SPECS
 
 
@@ -30,7 +29,7 @@ runtime_secrets = load_runtime_secrets()
 
 
 @st.cache_resource
-def runtime_provider(configuration_hash: str):
+def runtime_provider(configuration_hash: str) -> MarketDataProvider:
     del configuration_hash
     return build_market_data_provider(config, secrets=runtime_secrets)
 
