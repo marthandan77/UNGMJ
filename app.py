@@ -11,7 +11,12 @@ from typing import Any
 
 import streamlit as st
 from ung_forecast.configuration import load_config
-from ung_forecast.data import MarketDataProvider, build_market_data_provider
+from ung_forecast.data import (
+    MarketDataProvider,
+    ParquetCache,
+    build_market_data_provider,
+    load_runtime_market_data,
+)
 from ung_forecast.horizons import HORIZON_SPECS
 
 
@@ -53,26 +58,47 @@ if "schwab" not in runtime_secrets:
     )
 else:
     st.success("Schwab secrets are present. Values are not displayed or logged.")
-    if st.button("Test Schwab UNG feed", type="primary"):
+    if st.button("Load and validate Schwab data", type="primary"):
         try:
             provider = runtime_provider(config.configuration_hash)
-            bundle = provider.download(
+            runtime_data = load_runtime_market_data(
+                provider,
+                ParquetCache(config.data.cache_directory),
                 symbol=config.data.primary_symbol,
-                interval="5m",
-                period="",
                 as_of=datetime.now(UTC),
+                allow_cache_fallback=True,
             )
         except Exception as exc:  # Streamlit must surface provider failures safely.
-            st.error(f"Schwab feed test failed: {type(exc).__name__}: {exc}")
+            st.error(f"Schwab data load failed: {type(exc).__name__}: {exc}")
         else:
-            latest = bundle.frame.iloc[-1]
-            st.success("Schwab market data passed validation.")
-            first, second, third = st.columns(3)
-            first.metric("Latest close", f"${float(latest['Close']):.2f}")
-            second.metric("Validated bars", f"{len(bundle.frame):,}")
-            third.metric("Latest bar", str(bundle.frame.index[-1]))
-            with st.expander("Validated data preview"):
-                st.dataframe(bundle.frame.tail(20), use_container_width=True)
+            if not runtime_data.bundles_by_interval:
+                st.error("No validated live or cached market data is available.")
+            else:
+                st.success("Runtime market data load completed.")
+                rows: list[dict[str, object]] = []
+                for interval, bundle in runtime_data.bundles_by_interval.items():
+                    latest = bundle.frame.iloc[-1]
+                    rows.append(
+                        {
+                            "Interval": interval,
+                            "Source": runtime_data.source_by_interval[interval],
+                            "Bars": len(bundle.frame),
+                            "Latest close": round(float(latest["Close"]), 4),
+                            "Latest timestamp": str(bundle.frame.index[-1]),
+                            "Provider": bundle.provenance.provider,
+                        }
+                    )
+                st.dataframe(rows, use_container_width=True, hide_index=True)
+                if runtime_data.errors_by_interval:
+                    with st.expander("Provider errors and cache fallbacks"):
+                        for interval, error in runtime_data.errors_by_interval.items():
+                            st.warning(f"{interval}: {error}")
+                with st.expander("Latest validated 5-minute bars"):
+                    five_minute = runtime_data.bundles_by_interval.get("5m")
+                    if five_minute is not None:
+                        st.dataframe(five_minute.frame.tail(20), use_container_width=True)
+                    else:
+                        st.write("Five-minute data is unavailable.")
 
 st.subheader("Forecast horizons")
 for specification in HORIZON_SPECS.values():
