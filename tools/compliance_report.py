@@ -1,7 +1,5 @@
 """Generate a machine-readable and Markdown build-compliance report."""
 
-from __future__ import annotations
-
 import json
 import re
 from dataclasses import asdict, dataclass
