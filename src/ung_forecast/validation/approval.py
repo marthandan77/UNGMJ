@@ -1,8 +1,9 @@
-"""Predeclared statistical approval gate for horizon models."""
+"""Predeclared statistical and trading approval gates."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
+from math import isfinite
 
 
 @dataclass(frozen=True, slots=True)
@@ -10,17 +11,16 @@ class ValidationMetrics:
     brier_score: float
     log_loss: float
     calibration_error: float
-    economic_value: float
     sample_count: int
+    economic_value: float = float("nan")
 
 
 @dataclass(frozen=True, slots=True)
-class ApprovalCriteria:
+class StatisticalApprovalCriteria:
     minimum_samples: int = 250
     maximum_calibration_error: float = 0.10
     minimum_brier_improvement: float = 0.0
     minimum_log_loss_improvement: float = 0.0
-    minimum_economic_value: float = 0.0
 
     def __post_init__(self) -> None:
         if self.minimum_samples <= 0:
@@ -30,15 +30,28 @@ class ApprovalCriteria:
 
 
 @dataclass(frozen=True, slots=True)
+class TradingApprovalCriteria:
+    minimum_economic_value: float = 0.0
+    minimum_shadow_samples: int = 100
+
+    def __post_init__(self) -> None:
+        if self.minimum_shadow_samples <= 0:
+            raise ValueError("minimum_shadow_samples must be positive")
+
+
+ApprovalCriteria = StatisticalApprovalCriteria
+
+
+@dataclass(frozen=True, slots=True)
 class ApprovalDecision:
     approved: bool
     reasons: tuple[str, ...]
 
 
-def evaluate_approval(
+def evaluate_statistical_approval(
     model: ValidationMetrics,
     baseline: ValidationMetrics,
-    criteria: ApprovalCriteria,
+    criteria: StatisticalApprovalCriteria,
 ) -> ApprovalDecision:
     reasons: list[str] = []
     if model.sample_count < criteria.minimum_samples:
@@ -49,6 +62,36 @@ def evaluate_approval(
         reasons.append("brier_not_better_than_baseline")
     if baseline.log_loss - model.log_loss <= criteria.minimum_log_loss_improvement:
         reasons.append("log_loss_not_better_than_baseline")
-    if model.economic_value <= criteria.minimum_economic_value:
+    return ApprovalDecision(approved=not reasons, reasons=tuple(reasons))
+
+
+def evaluate_trading_approval(
+    *,
+    statistical_decision: ApprovalDecision,
+    economic_value: float,
+    shadow_samples: int,
+    execution_model_configured: bool,
+    criteria: TradingApprovalCriteria,
+) -> ApprovalDecision:
+    reasons: list[str] = []
+    if not statistical_decision.approved:
+        reasons.append("statistical_approval_required")
+    if not execution_model_configured:
+        reasons.append("execution_model_not_configured")
+    if shadow_samples < criteria.minimum_shadow_samples:
+        reasons.append("insufficient_shadow_samples")
+    if not isfinite(economic_value):
+        reasons.append("economic_value_unavailable")
+    elif economic_value <= criteria.minimum_economic_value:
         reasons.append("economic_value_not_positive")
     return ApprovalDecision(approved=not reasons, reasons=tuple(reasons))
+
+
+def evaluate_approval(
+    model: ValidationMetrics,
+    baseline: ValidationMetrics,
+    criteria: StatisticalApprovalCriteria,
+) -> ApprovalDecision:
+    """Backward-compatible alias for statistical approval only."""
+
+    return evaluate_statistical_approval(model, baseline, criteria)
