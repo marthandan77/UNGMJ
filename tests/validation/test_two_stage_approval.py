@@ -12,8 +12,20 @@ from ung_forecast.validation.approval import (
 
 
 def test_statistical_approval_does_not_require_economic_value() -> None:
-    model = ValidationMetrics(0.50, 0.90, 0.05, 500)
-    baseline = ValidationMetrics(0.70, 1.10, 0.07, 500)
+    model = ValidationMetrics(
+        brier_score=0.50,
+        log_loss=0.90,
+        calibration_error=0.05,
+        economic_value=float("nan"),
+        sample_count=500,
+    )
+    baseline = ValidationMetrics(
+        brier_score=0.70,
+        log_loss=1.10,
+        calibration_error=0.07,
+        economic_value=float("nan"),
+        sample_count=500,
+    )
     decision = evaluate_statistical_approval(
         model,
         baseline,
