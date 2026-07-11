@@ -20,7 +20,6 @@ from ung_forecast.data import (
 )
 from ung_forecast.horizons import HORIZON_SPECS
 
-
 config = load_config()
 
 
