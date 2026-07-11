@@ -20,17 +20,18 @@ class DataValidationError(ValueError):
     """Raised when market data violates a non-negotiable data contract."""
 
 
-def _ensure_datetime_index(frame: pd.DataFrame) -> None:
+def _datetime_index(frame: pd.DataFrame) -> pd.DatetimeIndex:
     if not isinstance(frame.index, pd.DatetimeIndex):
         raise DataValidationError("Market data index must be a DatetimeIndex")
     if frame.index.tz is None:
         raise DataValidationError("Market data timestamps must be timezone-aware")
+    return frame.index
 
 
 def normalize_timezone(frame: pd.DataFrame, timezone: str) -> pd.DataFrame:
-    _ensure_datetime_index(frame)
+    index = _datetime_index(frame)
     normalized = frame.copy()
-    normalized.index = normalized.index.tz_convert(ZoneInfo(timezone))
+    normalized.index = index.tz_convert(ZoneInfo(timezone))
     return normalized
 
 
@@ -40,6 +41,7 @@ def remove_incomplete_last_bar(
     interval: str,
     as_of: datetime,
 ) -> pd.DataFrame:
+    index = _datetime_index(frame)
     if interval not in INTERVAL_TO_DELTA:
         raise DataValidationError(f"Unsupported interval: {interval}")
     if as_of.tzinfo is None:
@@ -48,7 +50,7 @@ def remove_incomplete_last_bar(
         raise DataValidationError("Market data frame cannot be empty")
 
     interval_delta = INTERVAL_TO_DELTA[interval]
-    last_start = frame.index[-1].to_pydatetime()
+    last_start = index[-1].to_pydatetime()
     if last_start + interval_delta > as_of:
         return frame.iloc[:-1].copy()
     return frame.copy()
@@ -67,13 +69,13 @@ def validate_ohlcv(
     The function never forward-fills and never silently removes duplicate timestamps.
     """
 
-    _ensure_datetime_index(frame)
+    index = _datetime_index(frame)
     missing = [column for column in REQUIRED_COLUMNS if column not in frame.columns]
     if missing:
         raise DataValidationError(f"Missing required OHLCV columns: {missing}")
-    if frame.index.has_duplicates:
+    if index.has_duplicates:
         raise DataValidationError("Duplicate timestamps detected")
-    if not frame.index.is_monotonic_increasing:
+    if not index.is_monotonic_increasing:
         raise DataValidationError("Timestamps must be strictly increasing")
 
     numeric = frame.loc[:, REQUIRED_COLUMNS]
@@ -93,8 +95,9 @@ def validate_ohlcv(
     if completed.empty:
         raise DataValidationError("No completed bars remain after filtering")
 
+    completed_index = _datetime_index(completed)
     if stale_after is not None:
-        latest = completed.index[-1].to_pydatetime()
+        latest = completed_index[-1].to_pydatetime()
         if as_of - latest > stale_after:
             raise DataValidationError("Market data is stale")
 
