@@ -75,6 +75,7 @@ def _evaluate_metrics(target: pd.Series, probabilities: pd.DataFrame) -> Validat
         brier_score=multiclass_brier_score(target, probabilities),
         log_loss=multiclass_log_loss(target, probabilities),
         calibration_error=expected_calibration_error(target, probabilities),
+        economic_value=float("nan"),
         sample_count=len(target),
     )
 
