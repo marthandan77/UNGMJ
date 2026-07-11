@@ -6,10 +6,10 @@ validated forecast objects supplied by the core package in later stages.
 
 from __future__ import annotations
 
+import streamlit as st
+
 from ung_forecast.configuration import load_config
 from ung_forecast.horizons import HORIZON_SPECS
-
-import streamlit as st
 
 
 config = load_config()
