@@ -26,7 +26,7 @@ Status values: `PENDING`, `IMPLEMENTED`, `TESTED`, `BLOCKED`.
 | AC-CONF-001 | `src/ung_forecast/confidence/engine.py` | `tests/decision/test_expected_value_and_confidence.py` | IMPLEMENTED |
 | AC-EXP-001..003 | `src/ung_forecast/explanations/renderer.py` | `tests/explanations/test_renderer.py` | IMPLEMENTED |
 | AC-CROSS-001..002 | `src/ung_forecast/coordinator/cross_horizon.py` | `tests/coordinator/test_cross_horizon.py` | IMPLEMENTED |
-| AC-LEARN-001..004 | `src/learning/champion_challenger.py` | `tests/learning/test_promotion_controls.py` | PENDING |
+| AC-LEARN-001..004 | `src/ung_forecast/learning/champion_challenger.py` | `tests/learning/test_champion_challenger.py` | IMPLEMENTED |
 | AC-UI-001..004 | `dashboard/` | `tests/dashboard/test_render_contract.py` | PENDING |
 | AC-DEL-001..004 | `tools/compliance_report.py` | `tests/compliance/test_traceability.py` | PENDING |
 
