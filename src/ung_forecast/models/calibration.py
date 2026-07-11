@@ -24,7 +24,8 @@ class CalibrationConfig:
 class MulticlassProbabilityCalibrator:
     def __init__(self, config: CalibrationConfig | None = None) -> None:
         self.config = config or CalibrationConfig()
-        self._models: dict[str, object] = {}
+        self._platt_models: dict[str, LogisticRegression] = {}
+        self._isotonic_models: dict[str, IsotonicRegression] = {}
         self._fitted = False
 
     def fit(self, raw_probabilities: pd.DataFrame, target: pd.Series) -> None:
@@ -38,10 +39,11 @@ class MulticlassProbabilityCalibrator:
             if self.config.method == "platt":
                 model = LogisticRegression(solver="lbfgs")
                 model.fit(scores.reshape(-1, 1), binary_target.to_numpy())
+                self._platt_models[class_name] = model
             else:
                 model = IsotonicRegression(out_of_bounds="clip")
                 model.fit(scores, binary_target.to_numpy())
-            self._models[class_name] = model
+                self._isotonic_models[class_name] = model
         self._fitted = True
 
     def transform(self, raw_probabilities: pd.DataFrame) -> pd.DataFrame:
@@ -50,10 +52,11 @@ class MulticlassProbabilityCalibrator:
         calibrated = pd.DataFrame(index=raw_probabilities.index)
         for class_name in CLASS_ORDER:
             scores = raw_probabilities[class_name].astype(float).to_numpy()
-            model = self._models[class_name]
             if self.config.method == "platt":
+                model = self._platt_models[class_name]
                 values = model.predict_proba(scores.reshape(-1, 1))[:, 1]
             else:
+                model = self._isotonic_models[class_name]
                 values = model.predict(scores)
             calibrated[class_name] = np.asarray(values, dtype=float)
         row_sum = calibrated.sum(axis=1).replace(0.0, np.nan)
