@@ -7,6 +7,7 @@ provider and renders validated objects from the core package.
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import Any
 
 import streamlit as st
 
@@ -18,10 +19,20 @@ from ung_forecast.horizons import HORIZON_SPECS
 config = load_config()
 
 
+def load_runtime_secrets() -> dict[str, Any]:
+    try:
+        return dict(st.secrets)
+    except Exception:
+        return {}
+
+
+runtime_secrets = load_runtime_secrets()
+
+
 @st.cache_resource
 def runtime_provider(configuration_hash: str):
     del configuration_hash
-    return build_market_data_provider(config, secrets=st.secrets)
+    return build_market_data_provider(config, secrets=runtime_secrets)
 
 
 st.set_page_config(page_title=config.application_name, layout="wide")
@@ -36,7 +47,7 @@ with st.sidebar:
     st.caption("The application does not place or route orders.")
 
 st.subheader("Data connection")
-if "schwab" not in st.secrets:
+if "schwab" not in runtime_secrets:
     st.warning(
         "Schwab is not configured. Add the [schwab] values from "
         ".streamlit/secrets.toml.example to Streamlit App settings > Secrets."
