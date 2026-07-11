@@ -50,9 +50,14 @@ def expected_calibration_error(
     if bins <= 1:
         raise ValueError("bins must exceed one")
     aligned = probabilities.reindex(target.index)
-    predicted_class = aligned.idxmax(axis=1)
-    confidence = aligned.max(axis=1)
-    correctness = predicted_class.eq(target.astype(str)).astype(float)
+    predicted_class = aligned.idxmax(axis=1).astype(str)
+    confidence = aligned.max(axis=1).astype(float)
+    target_values = target.astype(str)
+    correctness = pd.Series(
+        predicted_class.to_numpy() == target_values.to_numpy(),
+        index=target.index,
+        dtype=float,
+    )
     edges = np.linspace(0.0, 1.0, bins + 1)
     error = 0.0
     total = len(target)
