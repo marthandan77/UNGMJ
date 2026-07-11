@@ -30,6 +30,13 @@ class StatisticalApprovalCriteria:
 
 
 @dataclass(frozen=True, slots=True)
+class ApprovalCriteria(StatisticalApprovalCriteria):
+    """Legacy combined gate used by existing research-runner callers."""
+
+    minimum_economic_value: float = 0.0
+
+
+@dataclass(frozen=True, slots=True)
 class TradingApprovalCriteria:
     minimum_economic_value: float = 0.0
     minimum_shadow_samples: int = 100
@@ -37,9 +44,6 @@ class TradingApprovalCriteria:
     def __post_init__(self) -> None:
         if self.minimum_shadow_samples <= 0:
             raise ValueError("minimum_shadow_samples must be positive")
-
-
-ApprovalCriteria = StatisticalApprovalCriteria
 
 
 @dataclass(frozen=True, slots=True)
@@ -90,8 +94,14 @@ def evaluate_trading_approval(
 def evaluate_approval(
     model: ValidationMetrics,
     baseline: ValidationMetrics,
-    criteria: StatisticalApprovalCriteria,
+    criteria: ApprovalCriteria,
 ) -> ApprovalDecision:
-    """Backward-compatible alias for statistical approval only."""
+    """Backward-compatible combined statistical and economic gate."""
 
-    return evaluate_statistical_approval(model, baseline, criteria)
+    statistical = evaluate_statistical_approval(model, baseline, criteria)
+    reasons = list(statistical.reasons)
+    if not isfinite(model.economic_value):
+        reasons.append("economic_value_unavailable")
+    elif model.economic_value <= criteria.minimum_economic_value:
+        reasons.append("economic_value_not_positive")
+    return ApprovalDecision(approved=not reasons, reasons=tuple(reasons))
