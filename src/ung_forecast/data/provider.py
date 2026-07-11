@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
-from typing import Protocol
+from typing import Protocol, cast
 
 import pandas as pd
 import yfinance as yf
@@ -53,9 +53,15 @@ class YFinanceProvider:
 
         result = frame.copy()
         if symbol in result.columns.get_level_values(-1):
-            result = result.xs(symbol, axis=1, level=-1, drop_level=True)
+            result = cast(
+                pd.DataFrame,
+                result.xs(symbol, axis=1, level=-1, drop_level=True),
+            )
         elif symbol in result.columns.get_level_values(0):
-            result = result.xs(symbol, axis=1, level=0, drop_level=True)
+            result = cast(
+                pd.DataFrame,
+                result.xs(symbol, axis=1, level=0, drop_level=True),
+            )
         else:
             raise ValueError(f"Unable to identify symbol columns for {symbol}")
         return result
@@ -85,9 +91,12 @@ class YFinanceProvider:
             raise ValueError(f"yfinance returned no data for {symbol} at {interval}")
 
         flattened = self._flatten_columns(raw, symbol)
-        source_timezone = str(flattened.index.tz) if flattened.index.tz is not None else "naive"
-        if flattened.index.tz is None:
-            flattened.index = flattened.index.tz_localize(self.timezone)
+        if not isinstance(flattened.index, pd.DatetimeIndex):
+            raise ValueError("yfinance data must use a DatetimeIndex")
+        index = flattened.index
+        source_timezone = str(index.tz) if index.tz is not None else "naive"
+        if index.tz is None:
+            flattened.index = index.tz_localize(self.timezone)
 
         validated = validate_ohlcv(
             flattened,
