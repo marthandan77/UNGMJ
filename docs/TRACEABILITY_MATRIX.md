@@ -4,12 +4,12 @@ Status values: `PENDING`, `IMPLEMENTED`, `TESTED`, `BLOCKED`.
 
 | Requirement | Planned implementation | Required test | Status |
 |---|---|---|---|
-| AC-DATA-001 | `src/data/validator.py` | `tests/data/test_completed_bars.py` | PENDING |
-| AC-DATA-002 | `src/data/validator.py` | `tests/data/test_duplicate_timestamps.py` | PENDING |
-| AC-DATA-003 | `src/data/validator.py` | `tests/data/test_stale_data.py` | PENDING |
-| AC-DATA-004 | `src/data/calendar.py` | `tests/data/test_timezone_policy.py` | PENDING |
-| AC-DATA-005 | `src/data/schemas.py` | `tests/data/test_provenance.py` | PENDING |
-| AC-DATA-006 | `src/data/adjustments.py` | `tests/data/test_adjustment_policy.py` | PENDING |
+| AC-DATA-001 | `src/ung_forecast/data/validator.py` | `tests/data/test_validation.py` | IMPLEMENTED |
+| AC-DATA-002 | `src/ung_forecast/data/validator.py` | `tests/data/test_validation.py` | IMPLEMENTED |
+| AC-DATA-003 | `src/ung_forecast/data/validator.py` | `tests/data/test_validation.py` | IMPLEMENTED |
+| AC-DATA-004 | `src/ung_forecast/data/validator.py` | `tests/data/test_validation.py` | IMPLEMENTED |
+| AC-DATA-005 | `src/ung_forecast/data/schemas.py` | `tests/data/test_cache.py` | IMPLEMENTED |
+| AC-DATA-006 | `src/ung_forecast/configuration.py`, `src/ung_forecast/data/provider.py` | `tests/data/test_provider.py` | IMPLEMENTED |
 | AC-DATA-007 | `src/models/registry.py` | `tests/models/test_ng_fallback.py` | PENDING |
 | AC-HOR-001..005 | `src/ung_forecast/horizons.py` | `tests/test_foundation.py` | IMPLEMENTED |
 | AC-HOR-006 | `src/models/registry.py` | `tests/models/test_independent_horizons.py` | PENDING |
