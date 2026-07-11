@@ -18,7 +18,9 @@ def log_return(close: pd.Series, periods: int) -> pd.Series:
         raise ValueError("periods must be positive")
     if (close <= 0).any():
         raise ValueError("close prices must be positive")
-    return np.log(close / close.shift(periods)).rename(f"log_return_{periods}")
+    ratio = (close / close.shift(periods)).astype(float)
+    values = np.log(ratio.to_numpy(dtype=float))
+    return pd.Series(values, index=close.index, name=f"log_return_{periods}")
 
 
 def realized_volatility(close: pd.Series, window: int) -> pd.Series:
@@ -26,7 +28,12 @@ def realized_volatility(close: pd.Series, window: int) -> pd.Series:
         raise ValueError("window must exceed one")
     one_period_returns = log_return(close, 1)
     values = one_period_returns.pow(2).rolling(window=window, min_periods=window).sum()
-    return np.sqrt(values).rename(f"realized_volatility_{window}")
+    volatility = np.sqrt(values.to_numpy(dtype=float))
+    return pd.Series(
+        volatility,
+        index=values.index,
+        name=f"realized_volatility_{window}",
+    )
 
 
 def session_vwap(frame: pd.DataFrame) -> pd.Series:
