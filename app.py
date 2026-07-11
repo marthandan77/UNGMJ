@@ -10,6 +10,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 import streamlit as st
+
 from ung_forecast.configuration import load_config
 from ung_forecast.data import (
     MarketDataProvider,
