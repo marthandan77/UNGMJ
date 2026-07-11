@@ -28,6 +28,6 @@ Status values: `PENDING`, `IMPLEMENTED`, `TESTED`, `BLOCKED`.
 | AC-CROSS-001..002 | `src/ung_forecast/coordinator/cross_horizon.py` | `tests/coordinator/test_cross_horizon.py` | IMPLEMENTED |
 | AC-LEARN-001..004 | `src/ung_forecast/learning/champion_challenger.py`, `src/ung_forecast/persistence/` | `tests/learning/test_champion_challenger.py`, `tests/persistence/test_forecast_store_and_scoring.py` | IMPLEMENTED |
 | AC-UI-001..004 | `src/ung_forecast/dashboard/view_models.py`, `app.py` | `tests/dashboard/test_view_models.py` | IMPLEMENTED |
-| AC-DEL-001..004 | `tools/compliance_report.py` | `tests/compliance/test_traceability.py` | PENDING |
+| AC-DEL-001..004 | `tools/compliance_report.py`, `.github/workflows/ci.yml` | `tests/compliance/test_compliance_report.py` | IMPLEMENTED |
 
 This matrix must be updated in the same pull request as each implementation. A requirement is complete only when implementation and its mapped automated test are present and passing.
