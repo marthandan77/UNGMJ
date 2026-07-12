@@ -17,6 +17,9 @@ from .schemas import DataProvenance, MarketDataBundle
 from .validator import validate_ohlcv
 
 
+RequestParameter = str | int
+
+
 class HttpResponse(Protocol):
     def raise_for_status(self) -> None: ...
 
@@ -28,7 +31,7 @@ class HttpClient(Protocol):
         self,
         url: str,
         *,
-        params: dict[str, Any],
+        params: dict[str, RequestParameter],
         timeout: float,
     ) -> HttpResponse: ...
 
@@ -74,7 +77,7 @@ class TwelveDataMarketDataProvider:
         self.base_url = base_url.rstrip("/")
         self.timezone = timezone
         self.adjusted_prices = adjusted_prices
-        self.http_client = http_client or requests.Session()
+        self.http_client: HttpClient = http_client or requests.Session()
         self.timeout = timeout
 
     @staticmethod
@@ -107,16 +110,17 @@ class TwelveDataMarketDataProvider:
         except KeyError as exc:
             raise ValueError(f"Twelve Data interval is not supported: {interval}") from exc
 
+        params: dict[str, RequestParameter] = {
+            "symbol": symbol,
+            "interval": provider_interval,
+            "outputsize": output_size,
+            "timezone": self.timezone,
+            "format": "JSON",
+            "apikey": self.credentials.api_key,
+        }
         response = self.http_client.get(
             f"{self.base_url}/time_series",
-            params={
-                "symbol": symbol,
-                "interval": provider_interval,
-                "outputsize": output_size,
-                "timezone": self.timezone,
-                "format": "JSON",
-                "apikey": self.credentials.api_key,
-            },
+            params=params,
             timeout=self.timeout,
         )
         response.raise_for_status()
