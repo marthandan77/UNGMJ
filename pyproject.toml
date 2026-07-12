@@ -32,6 +32,11 @@ dev = [
   "types-requests>=2.32,<3",
 ]
 
+[tool.poetry]
+packages = [
+  { include = "ung_forecast", from = "src" },
+]
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/ung_forecast"]
 
