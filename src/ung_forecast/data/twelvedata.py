@@ -13,9 +13,8 @@ from typing import Any, Protocol
 import pandas as pd
 import requests
 
-from .schemas import DataProvenance, MarketDataBundle
-from .validator import validate_ohlcv
-
+from ung_forecast.data.schemas import DataProvenance, MarketDataBundle
+from ung_forecast.data.validator import validate_ohlcv
 
 RequestParameter = str | int
 
