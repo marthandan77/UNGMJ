@@ -31,9 +31,9 @@ def normalize_provider_secrets(raw_secrets: object) -> dict[str, Any]:
 
     if "twelvedata" not in normalized:
         for alias in ("twelve_data", "twelve-data", "twelveData"):
-            section = normalized.get(alias)
-            if isinstance(section, Mapping):
-                normalized["twelvedata"] = dict(section)
+            alias_section = normalized.get(alias)
+            if isinstance(alias_section, Mapping):
+                normalized["twelvedata"] = dict(alias_section)
                 break
 
     if "twelvedata" not in normalized:
@@ -41,11 +41,11 @@ def normalize_provider_secrets(raw_secrets: object) -> dict[str, Any]:
         if flat_key is None:
             flat_key = normalized.get("twelvedata_api_key")
         if flat_key is not None:
-            section: dict[str, Any] = {"api_key": flat_key}
+            twelve_data_section: dict[str, Any] = {"api_key": flat_key}
             base_url = normalized.get("TWELVEDATA_BASE_URL")
             if base_url is not None:
-                section["base_url"] = base_url
-            normalized["twelvedata"] = section
+                twelve_data_section["base_url"] = base_url
+            normalized["twelvedata"] = twelve_data_section
 
     return normalized
 
