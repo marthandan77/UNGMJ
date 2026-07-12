@@ -66,6 +66,10 @@ class TwelveDataMarketDataProvider:
         http_client: HttpClient | None = None,
         timeout: float = 20.0,
     ) -> None:
+        if adjusted_prices:
+            raise ValueError(
+                "Adjusted-price semantics are not configured for the Twelve Data adapter"
+            )
         self.credentials = credentials
         self.base_url = base_url.rstrip("/")
         self.timezone = timezone
