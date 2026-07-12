@@ -9,6 +9,7 @@ from ung_forecast.configuration import AppConfig
 
 from .provider import MarketDataProvider, YFinanceProvider
 from .schwab import SchwabCredentials, SchwabMarketDataProvider, SchwabTokenProvider
+from .secrets import normalize_provider_secrets
 from .twelvedata import TwelveDataCredentials, TwelveDataMarketDataProvider
 
 
@@ -24,9 +25,10 @@ def _required_section(
     secrets: Mapping[str, Any] | None,
     section_name: str,
 ) -> Mapping[str, Any]:
-    if secrets is None or section_name not in secrets:
+    normalized = normalize_provider_secrets(secrets or {})
+    if section_name not in normalized:
         raise ValueError(f"Streamlit secrets must contain a [{section_name}] section")
-    section = secrets[section_name]
+    section = normalized[section_name]
     if not isinstance(section, Mapping):
         raise ValueError(f"The [{section_name}] secrets section must be a mapping")
     return section
