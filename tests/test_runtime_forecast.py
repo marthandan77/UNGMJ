@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 from datetime import UTC, datetime
+from pathlib import Path
 
 import joblib
 import numpy as np
@@ -39,7 +40,10 @@ def market_frame() -> pd.DataFrame:
     )
 
 
-def probability_frame(model, features: pd.DataFrame) -> pd.DataFrame:
+def probability_frame(
+    model: ElasticNetMultinomialModel,
+    features: pd.DataFrame,
+) -> pd.DataFrame:
     return pd.DataFrame(
         [
             {
@@ -52,6 +56,10 @@ def probability_frame(model, features: pd.DataFrame) -> pd.DataFrame:
         index=features.index,
         columns=CLASS_ORDER,
     )
+
+
+def digest(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def test_verified_artifact_generates_calibrated_research_probability(tmp_path) -> None:
@@ -74,7 +82,6 @@ def test_verified_artifact_generates_calibrated_research_probability(tmp_path) -
     calibrator_path = directory / "calibrator.joblib"
     joblib.dump(model, model_path)
     joblib.dump(calibrator, calibrator_path)
-    digest = lambda path: hashlib.sha256(path.read_bytes()).hexdigest()
     manifest = {
         "horizon": "60m",
         "created_at": datetime(2026, 7, 12, tzinfo=UTC).isoformat(),
