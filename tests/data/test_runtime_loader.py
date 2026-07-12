@@ -27,7 +27,7 @@ class FakeProvider:
         self.calls.append(interval)
         if interval == self.fail_interval:
             raise RuntimeError("provider unavailable")
-        index = pd.date_range("2026-07-10 10:00", periods=2, freq="5min", tz="America/New_York")
+        index = pd.date_range("2026-07-10 10:30", periods=2, freq="5min", tz="America/New_York")
         frame = pd.DataFrame(
             {
                 "Open": [10.0, 10.1],
@@ -86,6 +86,24 @@ def test_loader_uses_explicit_cache_fallback(tmp_path) -> None:
 
     assert result.source_by_interval["15m"] == "cache_fallback"
     assert "provider unavailable" in result.errors_by_interval["15m"]
+
+
+def test_loader_rejects_stale_cache_fallback(tmp_path) -> None:
+    cache = ParquetCache(tmp_path)
+    load_runtime_market_data(
+        FakeProvider(),
+        cache,
+        symbol="UNG",
+        as_of=datetime(2026, 7, 10, 15, 0, tzinfo=UTC),
+    )
+    result = load_runtime_market_data(
+        FakeProvider(fail_interval="5m"),
+        cache,
+        symbol="UNG",
+        as_of=datetime(2026, 7, 10, 16, 0, tzinfo=UTC),
+    )
+    assert "5m" not in result.bundles_by_interval
+    assert "cache rejected" in result.errors_by_interval["5m"]
 
 
 def test_loader_does_not_hide_failure_without_cache_fallback(tmp_path) -> None:
