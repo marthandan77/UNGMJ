@@ -1,4 +1,4 @@
-"""Discover model artifacts and reject incomplete or tampered bundles."""
+"""Discover model artifacts and reject incomplete, incompatible, or tampered bundles."""
 
 from __future__ import annotations
 
@@ -38,15 +38,14 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _resolve_checked(root: Path, artifact: ArtifactFile) -> Path:
+def resolve_checked(root: Path, artifact: ArtifactFile) -> Path:
     root_resolved = root.resolve()
     candidate = (root / artifact.relative_path).resolve()
     if candidate != root_resolved and root_resolved not in candidate.parents:
         raise ValueError("Artifact path escapes its manifest directory")
     if not candidate.is_file():
         raise FileNotFoundError(f"Artifact file is missing: {artifact.relative_path}")
-    observed = _sha256(candidate)
-    if observed != artifact.sha256:
+    if _sha256(candidate) != artifact.sha256:
         raise ValueError(f"Checksum mismatch: {artifact.relative_path}")
     return candidate
 
@@ -63,51 +62,51 @@ def load_manifest(path: str | Path) -> HorizonArtifactManifest:
         raise ValueError(f"Invalid artifact manifest: {manifest_path}") from exc
 
 
-def _discover_one(root: Path, horizon: HorizonKey) -> ArtifactLoadResult:
+def _discover_one(
+    root: Path,
+    horizon: HorizonKey,
+    *,
+    expected_configuration_hash: str | None,
+    comparison_available: bool,
+) -> ArtifactLoadResult:
     artifact_directory = root / horizon.value
     manifest_path = artifact_directory / "manifest.json"
     if not manifest_path.exists():
-        return ArtifactLoadResult(
-            horizon=horizon,
-            state=ArtifactState.UNAVAILABLE,
-            manifest=None,
-            artifact_directory=None,
-            errors=("manifest_not_found",),
-        )
+        return ArtifactLoadResult(horizon, ArtifactState.UNAVAILABLE, None, None, ("manifest_not_found",))
     try:
         manifest = load_manifest(manifest_path)
         if manifest.horizon is not horizon:
-            raise ValueError(
-                f"Manifest horizon {manifest.horizon.value} does not match directory {horizon.value}"
-            )
-        _resolve_checked(artifact_directory, manifest.model_file)
-        _resolve_checked(artifact_directory, manifest.calibrator_file)
+            raise ValueError("Manifest horizon does not match artifact directory")
+        if expected_configuration_hash is not None and (
+            manifest.configuration_hash != expected_configuration_hash
+        ):
+            raise ValueError("Artifact configuration hash does not match running application")
+        if manifest.includes_comparison and not comparison_available:
+            raise ValueError("Artifact requires comparison data that is unavailable")
+        resolve_checked(artifact_directory, manifest.model_file)
+        resolve_checked(artifact_directory, manifest.calibrator_file)
     except (OSError, ValueError) as exc:
         return ArtifactLoadResult(
-            horizon=horizon,
-            state=ArtifactState.INVALID,
-            manifest=None,
-            artifact_directory=artifact_directory,
-            errors=(str(exc),),
+            horizon, ArtifactState.INVALID, None, artifact_directory, (str(exc),)
         )
 
-    state = (
-        ArtifactState.VALIDATED
-        if manifest.statistical_approved
-        else ArtifactState.RESEARCH_ONLY
-    )
-    return ArtifactLoadResult(
-        horizon=horizon,
-        state=state,
-        manifest=manifest,
-        artifact_directory=artifact_directory,
-        errors=(),
-    )
+    state = ArtifactState.VALIDATED if manifest.statistical_approved else ArtifactState.RESEARCH_ONLY
+    return ArtifactLoadResult(horizon, state, manifest, artifact_directory, ())
 
 
-def discover_horizon_artifacts(root: str | Path) -> dict[HorizonKey, ArtifactLoadResult]:
+def discover_horizon_artifacts(
+    root: str | Path,
+    *,
+    expected_configuration_hash: str | None = None,
+    comparison_available: bool = False,
+) -> dict[HorizonKey, ArtifactLoadResult]:
     artifact_root = Path(root)
     return {
-        horizon: _discover_one(artifact_root, horizon)
+        horizon: _discover_one(
+            artifact_root,
+            horizon,
+            expected_configuration_hash=expected_configuration_hash,
+            comparison_available=comparison_available,
+        )
         for horizon in HORIZON_SPECS
     }
