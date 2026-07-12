@@ -45,12 +45,12 @@ def build_market_data_provider(
         )
     if provider_name == "twelvedata":
         section = _required_section(secrets, "twelvedata")
-        credentials = TwelveDataCredentials(
+        twelve_data_credentials = TwelveDataCredentials(
             api_key=str(section.get("api_key", "")).strip(),
         )
         base_url = str(section.get("base_url", "https://api.twelvedata.com")).strip()
         return TwelveDataMarketDataProvider(
-            credentials,
+            twelve_data_credentials,
             base_url=base_url,
             timezone=config.data.timezone,
             adjusted_prices=config.data.adjusted_prices,
@@ -59,7 +59,7 @@ def build_market_data_provider(
         raise ValueError(f"Unsupported market-data provider: {config.data.provider}")
 
     section = _required_section(secrets, "schwab")
-    credentials = SchwabCredentials(
+    schwab_credentials = SchwabCredentials(
         client_id=str(section.get("client_id", "")).strip(),
         client_secret=str(section.get("client_secret", "")).strip(),
         refresh_token=_optional_string(section, "refresh_token"),
@@ -68,7 +68,7 @@ def build_market_data_provider(
             section.get("token_url", "https://api.schwabapi.com/v1/oauth/token")
         ).strip(),
     )
-    token_provider = SchwabTokenProvider(credentials)
+    token_provider = SchwabTokenProvider(schwab_credentials)
     base_url = str(
         section.get("market_data_base_url", "https://api.schwabapi.com/marketdata/v1")
     ).strip()
