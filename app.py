@@ -6,17 +6,11 @@ provider and renders validated objects from the core package.
 
 from __future__ import annotations
 
-import sys
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 import streamlit as st
-
-ROOT = Path(__file__).resolve().parent
-SRC = ROOT / "src"
-if str(SRC) not in sys.path:
-    sys.path.insert(0, str(SRC))
 
 from ung_forecast.artifacts import ArtifactState, discover_horizon_artifacts
 from ung_forecast.configuration import load_config
