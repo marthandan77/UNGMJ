@@ -47,6 +47,7 @@ class HorizonArtifactManifest(BaseModel):
     data_version: str = Field(min_length=1)
     configuration_hash: str = Field(min_length=8)
     feature_names: tuple[str, ...] = Field(min_length=1)
+    includes_comparison: bool = False
     statistical_approved: bool
     approval_reasons: tuple[str, ...] = ()
     metrics: StatisticalMetricsSnapshot
