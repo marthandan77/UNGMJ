@@ -7,20 +7,23 @@ provider and renders validated objects from the core package.
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 import streamlit as st
 
+from ung_forecast.artifacts import discover_horizon_artifacts
 from ung_forecast.configuration import load_config
+from ung_forecast.dashboard import build_artifact_status_rows
 from ung_forecast.data import (
     MarketDataProvider,
     ParquetCache,
     build_market_data_provider,
     load_runtime_market_data,
 )
-from ung_forecast.horizons import HORIZON_SPECS
 
 config = load_config()
+ARTIFACT_ROOT = Path("artifacts/models")
 
 
 def load_runtime_secrets() -> dict[str, Any]:
@@ -100,16 +103,38 @@ else:
                     else:
                         st.write("Five-minute data is unavailable.")
 
-st.subheader("Forecast horizons")
-for specification in HORIZON_SPECS.values():
-    st.write(f"• {specification.display_name}: research status only")
-
-st.info(
-    "Directional forecasts remain disabled until a horizon passes its purged "
-    "walk-forward statistical approval tests."
+st.subheader("Model artifact readiness")
+artifact_results = discover_horizon_artifacts(ARTIFACT_ROOT)
+artifact_rows = build_artifact_status_rows(artifact_results)
+st.dataframe(
+    [
+        {
+            "Horizon": row.horizon,
+            "State": row.state,
+            "Model": row.model_version,
+            "Features": row.feature_version,
+            "Samples": row.samples,
+            "Brier": row.brier_score,
+            "Calibration error": row.calibration_error,
+            "Detail": row.detail,
+        }
+        for row in artifact_rows
+    ],
+    use_container_width=True,
+    hide_index=True,
 )
+
+validated_count = sum(row.state == "VALIDATED" for row in artifact_rows)
+if validated_count == 0:
+    st.info(
+        "No checksum-verified, statistically approved horizon artifact is installed. "
+        "Directional forecasts remain disabled."
+    )
+else:
+    st.success(f"{validated_count} horizon artifact(s) passed integrity and approval checks.")
 
 with st.expander("Build identity"):
     st.code(f"Configuration hash: {config.configuration_hash}")
     st.code(f"Configured provider: {config.data.provider}")
+    st.code(f"Artifact root: {ARTIFACT_ROOT}")
     st.code("Persistence: local prototype; PostgreSQL deferred")
