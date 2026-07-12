@@ -69,7 +69,7 @@ def test_empirical_runner_executes_walk_forward_with_economic_evidence() -> None
     assert np.isfinite(result.aggregate_model.log_loss)
 
 
-def test_empirical_runner_reports_all_declared_benchmarks() -> None:
+def test_empirical_runner_reports_raw_and_calibrated_benchmarks() -> None:
     result = run_empirical_evaluation(
         synthetic_dataset(),
         run_config=EmpiricalRunConfig(120, 45, 45, 3, 3, recency_half_life=60.0),
@@ -78,14 +78,18 @@ def test_empirical_runner_reports_all_declared_benchmarks() -> None:
     aggregate = result.aggregate_benchmarks
     assert aggregate.unconditional.sample_count > 0
     assert aggregate.recency_weighted.sample_count > 0
+    assert aggregate.plain_logistic_raw.sample_count > 0
     assert aggregate.plain_logistic.sample_count > 0
+    assert aggregate.elastic_net_raw.sample_count > 0
     assert aggregate.elastic_net.sample_count > 0
     assert result.aggregate_baseline == aggregate.unconditional
     assert result.aggregate_model == aggregate.elastic_net
     assert aggregate.best_brier_name() in {
         "unconditional",
         "recency_weighted",
+        "plain_logistic_raw",
         "plain_logistic",
+        "elastic_net_raw",
         "elastic_net",
     }
 
@@ -99,3 +103,5 @@ def test_each_fold_exposes_backward_compatible_and_named_metrics() -> None:
     first = result.folds[0]
     assert first.model == first.benchmarks.elastic_net
     assert first.baseline == first.benchmarks.unconditional
+    assert first.benchmarks.plain_logistic_raw.sample_count == first.model.sample_count
+    assert first.benchmarks.elastic_net_raw.sample_count == first.model.sample_count
