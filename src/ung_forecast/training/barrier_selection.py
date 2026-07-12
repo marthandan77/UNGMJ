@@ -67,8 +67,8 @@ def _candidate_dataset(
     market_data: pd.DataFrame,
     feature_frame: pd.DataFrame,
     volatility: pd.Series,
-    candidate: BarrierCandidate,
     *,
+    candidate: BarrierCandidate,
     required_bars: int,
     horizon_key: str,
 ) -> TrainingDataset:
@@ -123,7 +123,7 @@ def select_barriers_fold_only(
             market_data,
             feature_frame,
             volatility,
-            candidate,
+            candidate=candidate,
             required_bars=required_bars,
             horizon_key=horizon_key,
         )
