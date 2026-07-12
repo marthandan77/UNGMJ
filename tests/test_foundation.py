@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
 
-from ung_forecast.configuration import AppConfig
+from ung_forecast.configuration import AppConfig, DataConfig
 from ung_forecast.horizons import HORIZON_SPECS, HorizonKey
 from ung_forecast.schemas import (
     DataFreshness,
@@ -88,3 +89,21 @@ def test_configuration_hash_is_stable() -> None:
     second = AppConfig()
     assert first.configuration_hash == second.configuration_hash
     assert len(first.configuration_hash) == 64
+    assert first.quantitative_configuration_hash == second.quantitative_configuration_hash
+
+
+def test_quantitative_hash_ignores_provider_and_cache_path() -> None:
+    research = AppConfig(
+        data=DataConfig(provider="yfinance", cache_directory=Path("research/cache"))
+    )
+    runtime = AppConfig(
+        data=DataConfig(provider="schwab", cache_directory=Path("data/cache"))
+    )
+    assert research.configuration_hash != runtime.configuration_hash
+    assert research.quantitative_configuration_hash == runtime.quantitative_configuration_hash
+
+
+def test_quantitative_hash_changes_when_model_input_policy_changes() -> None:
+    unadjusted = AppConfig(data=DataConfig(adjusted_prices=False))
+    adjusted = AppConfig(data=DataConfig(adjusted_prices=True))
+    assert unadjusted.quantitative_configuration_hash != adjusted.quantitative_configuration_hash
