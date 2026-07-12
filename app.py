@@ -28,6 +28,7 @@ from ung_forecast.data import (
     build_market_data_provider,
     load_runtime_market_data,
 )
+from ung_forecast.data.secrets import normalize_provider_secrets, provider_secret_status
 from ung_forecast.horizons import HORIZON_SPECS
 from ung_forecast.runtime_forecast import generate_runtime_probability_forecast
 
@@ -37,24 +38,17 @@ ARTIFACT_ROOT = Path("artifacts/models")
 
 def load_runtime_secrets() -> dict[str, Any]:
     try:
-        return dict(st.secrets)
+        return normalize_provider_secrets(st.secrets)
     except Exception:
         return {}
-
-
-def provider_secret_section(provider_name: str) -> str | None:
-    normalized = provider_name.lower()
-    if normalized in {"schwab", "twelvedata"}:
-        return normalized
-    return None
 
 
 runtime_secrets = load_runtime_secrets()
 
 
 @st.cache_resource
-def runtime_provider(configuration_hash: str) -> MarketDataProvider:
-    del configuration_hash
+def runtime_provider(configuration_hash: str, secrets_fingerprint: tuple[str, ...]) -> MarketDataProvider:
+    del configuration_hash, secrets_fingerprint
     return build_market_data_provider(config, secrets=runtime_secrets)
 
 
@@ -68,8 +62,8 @@ provider_label = {
     "schwab": "Schwab",
     "yfinance": "yfinance",
 }.get(provider_name, config.data.provider)
-secret_section = provider_secret_section(provider_name)
-provider_configured = secret_section is None or secret_section in runtime_secrets
+provider_configured, provider_status = provider_secret_status(runtime_secrets, provider_name)
+secret_fingerprint = tuple(sorted(str(key) for key in runtime_secrets))
 
 with st.sidebar:
     st.header("System")
@@ -79,19 +73,19 @@ with st.sidebar:
     st.caption("The application does not place or route orders.")
 
 st.subheader("Data connection")
-if not provider_configured and secret_section is not None:
-    st.warning(
-        f"{provider_label} is not configured. Add the [{secret_section}] values from "
-        ".streamlit/secrets.toml.example to Streamlit App settings > Secrets."
-    )
+if not provider_configured:
+    st.warning(f"{provider_label} is not configured: {provider_status}.")
+    with st.expander("Secret diagnostics"):
+        st.write(f"Detected top-level secret names: {', '.join(secret_fingerprint) or 'none'}")
+        st.caption("Secret values are never displayed.")
+        st.code(
+            '[twelvedata]\napi_key = "YOUR_REAL_API_KEY"\nbase_url = "https://api.twelvedata.com"'
+        )
 else:
-    if secret_section is not None:
-        st.success(f"{provider_label} secrets are present. Values are not displayed or logged.")
-    else:
-        st.info(f"{provider_label} does not require Streamlit secrets.")
+    st.success(f"{provider_status}. Values are not displayed or logged.")
     if st.button(f"Load and validate {provider_label} data", type="primary"):
         try:
-            provider = runtime_provider(config.configuration_hash)
+            provider = runtime_provider(config.configuration_hash, secret_fingerprint)
             runtime_data = load_runtime_market_data(
                 provider,
                 ParquetCache(config.data.cache_directory),
