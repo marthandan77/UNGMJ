@@ -7,6 +7,7 @@ from .runtime_loader import REQUIRED_INTERVALS, RuntimeDataSet, load_runtime_mar
 from .schemas import DataProvenance, MarketDataBundle
 from .schwab import SchwabCredentials, SchwabMarketDataProvider, SchwabTokenProvider
 from .synchronizer import SynchronizedMarketData
+from .twelvedata import TwelveDataCredentials, TwelveDataMarketDataProvider
 from .validator import DataValidationError, validate_ohlcv
 
 __all__ = [
@@ -21,6 +22,8 @@ __all__ = [
     "SchwabMarketDataProvider",
     "SchwabTokenProvider",
     "SynchronizedMarketData",
+    "TwelveDataCredentials",
+    "TwelveDataMarketDataProvider",
     "YFinanceProvider",
     "build_market_data_provider",
     "load_runtime_market_data",
