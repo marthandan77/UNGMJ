@@ -9,6 +9,7 @@ from ung_forecast.configuration import AppConfig
 
 from .provider import MarketDataProvider, YFinanceProvider
 from .schwab import SchwabCredentials, SchwabMarketDataProvider, SchwabTokenProvider
+from .twelvedata import TwelveDataCredentials, TwelveDataMarketDataProvider
 
 
 def _optional_string(mapping: Mapping[str, Any], key: str) -> str | None:
@@ -17,6 +18,18 @@ def _optional_string(mapping: Mapping[str, Any], key: str) -> str | None:
         return None
     text = str(value).strip()
     return text or None
+
+
+def _required_section(
+    secrets: Mapping[str, Any] | None,
+    section_name: str,
+) -> Mapping[str, Any]:
+    if secrets is None or section_name not in secrets:
+        raise ValueError(f"Streamlit secrets must contain a [{section_name}] section")
+    section = secrets[section_name]
+    if not isinstance(section, Mapping):
+        raise ValueError(f"The [{section_name}] secrets section must be a mapping")
+    return section
 
 
 def build_market_data_provider(
@@ -30,14 +43,22 @@ def build_market_data_provider(
             timezone=config.data.timezone,
             adjusted_prices=config.data.adjusted_prices,
         )
+    if provider_name == "twelvedata":
+        section = _required_section(secrets, "twelvedata")
+        credentials = TwelveDataCredentials(
+            api_key=str(section.get("api_key", "")).strip(),
+        )
+        base_url = str(section.get("base_url", "https://api.twelvedata.com")).strip()
+        return TwelveDataMarketDataProvider(
+            credentials,
+            base_url=base_url,
+            timezone=config.data.timezone,
+            adjusted_prices=config.data.adjusted_prices,
+        )
     if provider_name != "schwab":
         raise ValueError(f"Unsupported market-data provider: {config.data.provider}")
-    if secrets is None or "schwab" not in secrets:
-        raise ValueError("Streamlit secrets must contain a [schwab] section")
 
-    section = secrets["schwab"]
-    if not isinstance(section, Mapping):
-        raise ValueError("The [schwab] secrets section must be a mapping")
+    section = _required_section(secrets, "schwab")
     credentials = SchwabCredentials(
         client_id=str(section.get("client_id", "")).strip(),
         client_secret=str(section.get("client_secret", "")).strip(),
