@@ -29,13 +29,35 @@ class AppConfig(BaseModel):
     research_mode: bool = True
     data: DataConfig = Field(default_factory=DataConfig)
 
+    @staticmethod
+    def _hash(payload: dict[str, Any]) -> str:
+        serialized = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+        return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+
     def canonical_dict(self) -> dict[str, Any]:
         return self.model_dump(mode="json")
 
+    def quantitative_dict(self) -> dict[str, Any]:
+        """Return settings that materially define model inputs.
+
+        Operational choices such as provider name and cache path are excluded.
+        Provider provenance remains recorded separately in datasets and artifacts.
+        """
+
+        return {
+            "primary_symbol": self.data.primary_symbol,
+            "comparison_symbol": self.data.comparison_symbol,
+            "timezone": self.data.timezone,
+            "adjusted_prices": self.data.adjusted_prices,
+        }
+
     @property
     def configuration_hash(self) -> str:
-        payload = json.dumps(self.canonical_dict(), sort_keys=True, separators=(",", ":"))
-        return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+        return self._hash(self.canonical_dict())
+
+    @property
+    def quantitative_configuration_hash(self) -> str:
+        return self._hash(self.quantitative_dict())
 
 
 def load_config(path: str | Path = "config.yaml") -> AppConfig:
