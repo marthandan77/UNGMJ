@@ -7,7 +7,6 @@ Checksums detect corruption; they do not make untrusted pickle content safe.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import cast
 
 import joblib
 
@@ -43,6 +42,6 @@ def load_validated_artifacts(result: ArtifactLoadResult) -> LoadedHorizonArtifac
         raise ValueError("Fitted model feature schema does not match manifest")
     return LoadedHorizonArtifacts(
         manifest=result.manifest,
-        model=cast(ElasticNetMultinomialModel, model_object),
-        calibrator=cast(MulticlassProbabilityCalibrator, calibrator_object),
+        model=model_object,
+        calibrator=calibrator_object,
     )
