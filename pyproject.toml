@@ -33,9 +33,7 @@ dev = [
 ]
 
 [tool.poetry]
-packages = [
-  { include = "ung_forecast", from = "src" },
-]
+package-mode = false
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/ung_forecast"]
