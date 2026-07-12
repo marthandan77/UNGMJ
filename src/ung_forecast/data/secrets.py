@@ -1,9 +1,12 @@
-"""Normalize provider credentials from Streamlit Secrets without exposing values."""
+"""Normalize runtime provider configuration without exposing secret values."""
 
 from __future__ import annotations
 
 from collections.abc import Mapping
 from typing import Any
+
+SUPPORTED_PROVIDERS = frozenset({"twelvedata", "schwab", "yfinance"})
+RUNTIME_PROVIDER_MARKERS = frozenset({"runtime", "auto", "secrets"})
 
 
 def _plain_mapping(value: object) -> dict[str, Any]:
@@ -20,13 +23,7 @@ def _plain_mapping(value: object) -> dict[str, Any]:
 
 
 def normalize_provider_secrets(raw_secrets: object) -> dict[str, Any]:
-    """Return a canonical secrets mapping used by provider factories.
-
-    Accepted Twelve Data forms:
-    - [twelvedata] api_key = "..."
-    - [twelve_data] api_key = "..."
-    - TWELVEDATA_API_KEY = "..."
-    """
+    """Return a canonical secrets mapping used by provider factories."""
 
     normalized = _plain_mapping(raw_secrets)
 
@@ -49,6 +46,55 @@ def normalize_provider_secrets(raw_secrets: object) -> dict[str, Any]:
             normalized["twelvedata"] = section
 
     return normalized
+
+
+def _explicit_provider(secrets: Mapping[str, Any]) -> str | None:
+    data_section = secrets.get("data")
+    if isinstance(data_section, Mapping):
+        value = str(data_section.get("provider", "")).strip().lower()
+        if value:
+            return value
+    for key in ("DATA_PROVIDER", "data_provider"):
+        value = str(secrets.get(key, "")).strip().lower()
+        if value:
+            return value
+    return None
+
+
+def resolve_runtime_provider(
+    configured_provider: str,
+    secrets: Mapping[str, Any],
+) -> str:
+    """Resolve provider without requiring a GitHub configuration edit.
+
+    A concrete provider in ``config.yaml`` remains supported for local research.
+    The ``runtime`` marker delegates selection to Streamlit Secrets.
+    """
+
+    configured = configured_provider.strip().lower()
+    if configured not in RUNTIME_PROVIDER_MARKERS:
+        if configured not in SUPPORTED_PROVIDERS:
+            raise ValueError(f"Unsupported configured provider: {configured_provider}")
+        return configured
+
+    explicit = _explicit_provider(secrets)
+    if explicit is not None:
+        if explicit not in SUPPORTED_PROVIDERS:
+            raise ValueError(f"Unsupported runtime provider: {explicit}")
+        return explicit
+
+    ready: list[str] = []
+    for candidate in ("twelvedata", "schwab"):
+        is_ready, _ = provider_secret_status(secrets, candidate)
+        if is_ready:
+            ready.append(candidate)
+    if len(ready) == 1:
+        return ready[0]
+    if len(ready) > 1:
+        raise ValueError(
+            "Multiple provider credentials detected; set [data] provider explicitly"
+        )
+    return "yfinance"
 
 
 def provider_secret_status(
