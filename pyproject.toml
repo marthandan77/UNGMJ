@@ -33,7 +33,13 @@ dev = [
 ]
 
 [tool.poetry]
-package-mode = false
+name = "ung-forecast-machine"
+version = "0.1.0"
+description = "Research-first multi-horizon UNG forecasting application"
+authors = ["UNGMJ"]
+packages = [
+  { include = "ung_forecast", from = "src" },
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/ung_forecast"]
