@@ -36,6 +36,13 @@ def load_runtime_secrets() -> dict[str, Any]:
         return {}
 
 
+def provider_secret_section(provider_name: str) -> str | None:
+    normalized = provider_name.lower()
+    if normalized in {"schwab", "twelvedata"}:
+        return normalized
+    return None
+
+
 runtime_secrets = load_runtime_secrets()
 
 
@@ -49,22 +56,34 @@ st.set_page_config(page_title=config.application_name, layout="wide")
 st.title(config.application_name)
 st.caption("GitHub + Streamlit forecast research build")
 
+provider_name = config.data.provider.lower()
+provider_label = {
+    "twelvedata": "Twelve Data",
+    "schwab": "Schwab",
+    "yfinance": "yfinance",
+}.get(provider_name, config.data.provider)
+secret_section = provider_secret_section(provider_name)
+provider_configured = secret_section is None or secret_section in runtime_secrets
+
 with st.sidebar:
     st.header("System")
-    st.write(f"Provider: **{config.data.provider.upper()}**")
+    st.write(f"Provider: **{provider_label}**")
     st.write(f"Primary symbol: **{config.data.primary_symbol}**")
     st.write("Mode: **Research / Shadow only**")
     st.caption("The application does not place or route orders.")
 
 st.subheader("Data connection")
-if "schwab" not in runtime_secrets:
+if not provider_configured and secret_section is not None:
     st.warning(
-        "Schwab is not configured. Add the [schwab] values from "
+        f"{provider_label} is not configured. Add the [{secret_section}] values from "
         ".streamlit/secrets.toml.example to Streamlit App settings > Secrets."
     )
 else:
-    st.success("Schwab secrets are present. Values are not displayed or logged.")
-    if st.button("Load and validate Schwab data", type="primary"):
+    if secret_section is not None:
+        st.success(f"{provider_label} secrets are present. Values are not displayed or logged.")
+    else:
+        st.info(f"{provider_label} does not require Streamlit secrets.")
+    if st.button(f"Load and validate {provider_label} data", type="primary"):
         try:
             provider = runtime_provider(config.configuration_hash)
             runtime_data = load_runtime_market_data(
@@ -75,7 +94,7 @@ else:
                 allow_cache_fallback=True,
             )
         except Exception as exc:
-            st.error(f"Schwab data load failed: {type(exc).__name__}: {exc}")
+            st.error(f"{provider_label} data load failed: {type(exc).__name__}: {exc}")
         else:
             st.session_state["runtime_data"] = runtime_data
 
