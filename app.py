@@ -107,7 +107,7 @@ if isinstance(runtime_data_state, RuntimeDataSet):
 st.subheader("Model artifact readiness")
 artifact_results = discover_horizon_artifacts(
     ARTIFACT_ROOT,
-    expected_configuration_hash=config.configuration_hash,
+    expected_configuration_hash=config.quantitative_configuration_hash,
     comparison_available=False,
 )
 artifact_rows = build_artifact_status_rows(artifact_results)
@@ -180,7 +180,8 @@ if isinstance(runtime_data_state, RuntimeDataSet) and validated_count:
         )
 
 with st.expander("Build identity"):
-    st.code(f"Configuration hash: {config.configuration_hash}")
+    st.code(f"Operational configuration hash: {config.configuration_hash}")
+    st.code(f"Quantitative configuration hash: {config.quantitative_configuration_hash}")
     st.code(f"Configured provider: {config.data.provider}")
     st.code(f"Artifact root: {ARTIFACT_ROOT}")
     st.code("Local cache and ledger are temporary on Streamlit Community Cloud.")
