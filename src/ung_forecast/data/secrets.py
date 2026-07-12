@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 from collections.abc import Mapping
 from typing import Any
 
@@ -46,6 +48,18 @@ def normalize_provider_secrets(raw_secrets: object) -> dict[str, Any]:
             normalized["twelvedata"] = section
 
     return normalized
+
+
+def secrets_fingerprint(secrets: Mapping[str, Any]) -> str:
+    """Return a one-way cache identity without logging secret values."""
+
+    serialized = json.dumps(
+        _plain_mapping(secrets),
+        sort_keys=True,
+        separators=(",", ":"),
+        default=str,
+    )
+    return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
 
 
 def _explicit_provider(secrets: Mapping[str, Any]) -> str | None:
