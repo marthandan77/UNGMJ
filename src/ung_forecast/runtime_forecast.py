@@ -7,6 +7,7 @@ approval alone is not trading approval.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from numbers import Real
 
 import pandas as pd
 
@@ -79,10 +80,14 @@ def generate_runtime_probability_forecast(
     )
     interval = HORIZON_SPECS[manifest.horizon].source_interval
     timestamp = pd.Timestamp(latest.index[-1])
+    close_value = bundle.frame["Close"].at[timestamp]
+    if isinstance(close_value, bool) or not isinstance(close_value, Real):
+        raise TypeError("Latest close is not a real numeric scalar")
+
     return RuntimeProbabilityForecast(
         horizon=manifest.horizon,
         timestamp=timestamp,
-        current_price=float(bundle.frame.loc[timestamp, "Close"]),
+        current_price=float(close_value),
         probabilities=probabilities,
         model_version=manifest.model_version,
         feature_version=manifest.feature_version,
