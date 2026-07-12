@@ -22,11 +22,16 @@ from ung_forecast.data import (
     build_market_data_provider,
     load_runtime_market_data,
 )
-from ung_forecast.data.secrets import normalize_provider_secrets, provider_secret_status
+from ung_forecast.data.secrets import (
+    normalize_provider_secrets,
+    provider_secret_status,
+    resolve_runtime_provider,
+    secrets_fingerprint,
+)
 from ung_forecast.horizons import HORIZON_SPECS
 from ung_forecast.runtime_forecast import generate_runtime_probability_forecast
 
-config = load_config()
+base_config = load_config()
 ARTIFACT_ROOT = Path("artifacts/models")
 
 
@@ -38,26 +43,43 @@ def load_runtime_secrets() -> dict[str, Any]:
 
 
 runtime_secrets = load_runtime_secrets()
+secret_identity = secrets_fingerprint(runtime_secrets)
+provider_resolution_error: str | None = None
+try:
+    provider_name = resolve_runtime_provider(base_config.data.provider, runtime_secrets)
+except ValueError as exc:
+    provider_name = "invalid"
+    provider_resolution_error = str(exc)
+
+config = base_config.model_copy(
+    update={"data": base_config.data.model_copy(update={"provider": provider_name})}
+)
 
 
 @st.cache_resource
-def runtime_provider(configuration_hash: str, secrets_fingerprint: tuple[str, ...]) -> MarketDataProvider:
-    del configuration_hash, secrets_fingerprint
-    return build_market_data_provider(config, secrets=runtime_secrets)
+def runtime_provider(
+    selected_provider: str,
+    configuration_hash: str,
+    secret_fingerprint: str,
+) -> MarketDataProvider:
+    del configuration_hash, secret_fingerprint
+    runtime_config = base_config.model_copy(
+        update={"data": base_config.data.model_copy(update={"provider": selected_provider})}
+    )
+    return build_market_data_provider(runtime_config, secrets=runtime_secrets)
 
 
 st.set_page_config(page_title=config.application_name, layout="wide")
 st.title(config.application_name)
 st.caption("GitHub + Streamlit forecast research build")
 
-provider_name = config.data.provider.lower()
 provider_label = {
     "twelvedata": "Twelve Data",
     "schwab": "Schwab",
     "yfinance": "yfinance",
-}.get(provider_name, config.data.provider)
+}.get(provider_name, provider_name)
 provider_configured, provider_status = provider_secret_status(runtime_secrets, provider_name)
-secret_fingerprint = tuple(sorted(str(key) for key in runtime_secrets))
+secret_names = tuple(sorted(str(key) for key in runtime_secrets))
 
 with st.sidebar:
     st.header("System")
@@ -67,19 +89,19 @@ with st.sidebar:
     st.caption("The application does not place or route orders.")
 
 st.subheader("Data connection")
-if not provider_configured:
+if provider_resolution_error is not None:
+    st.error(f"Provider selection failed: {provider_resolution_error}")
+elif not provider_configured:
     st.warning(f"{provider_label} is not configured: {provider_status}.")
-    with st.expander("Secret diagnostics"):
-        st.write(f"Detected top-level secret names: {', '.join(secret_fingerprint) or 'none'}")
-        st.caption("Secret values are never displayed.")
-        st.code(
-            '[twelvedata]\napi_key = "YOUR_REAL_API_KEY"\nbase_url = "https://api.twelvedata.com"'
-        )
 else:
     st.success(f"{provider_status}. Values are not displayed or logged.")
     if st.button(f"Load and validate {provider_label} data", type="primary"):
         try:
-            provider = runtime_provider(config.configuration_hash, secret_fingerprint)
+            provider = runtime_provider(
+                provider_name,
+                config.configuration_hash,
+                secret_identity,
+            )
             runtime_data = load_runtime_market_data(
                 provider,
                 ParquetCache(config.data.cache_directory),
@@ -91,6 +113,17 @@ else:
             st.error(f"{provider_label} data load failed: {type(exc).__name__}: {exc}")
         else:
             st.session_state["runtime_data"] = runtime_data
+
+with st.expander("Provider and secret diagnostics"):
+    st.write(f"Resolved provider: {provider_label}")
+    st.write(f"Detected top-level secret names: {', '.join(secret_names) or 'none'}")
+    st.caption("Secret values and fingerprints are never displayed.")
+    st.code(
+        '[data]\nprovider = "twelvedata"\n\n'
+        '[twelvedata]\napi_key = "YOUR_REAL_API_KEY"\n'
+        'base_url = "https://api.twelvedata.com"'
+    )
+    st.caption('Change [data] provider to "schwab" or "yfinance" without editing GitHub.')
 
 runtime_data_state = st.session_state.get("runtime_data")
 if isinstance(runtime_data_state, RuntimeDataSet):
@@ -195,6 +228,6 @@ if isinstance(runtime_data_state, RuntimeDataSet) and validated_count:
 with st.expander("Build identity"):
     st.code(f"Operational configuration hash: {config.configuration_hash}")
     st.code(f"Quantitative configuration hash: {config.quantitative_configuration_hash}")
-    st.code(f"Configured provider: {config.data.provider}")
+    st.code(f"Runtime provider: {provider_name}")
     st.code(f"Artifact root: {ARTIFACT_ROOT}")
     st.code("Local cache and ledger are temporary on Streamlit Community Cloud.")
