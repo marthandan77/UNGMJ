@@ -59,14 +59,18 @@ class EmpiricalRunConfig:
 class BenchmarkMetrics:
     unconditional: ValidationMetrics
     recency_weighted: ValidationMetrics
+    plain_logistic_raw: ValidationMetrics
     plain_logistic: ValidationMetrics
+    elastic_net_raw: ValidationMetrics
     elastic_net: ValidationMetrics
 
     def best_brier_name(self) -> str:
         values = {
             "unconditional": self.unconditional.brier_score,
             "recency_weighted": self.recency_weighted.brier_score,
+            "plain_logistic_raw": self.plain_logistic_raw.brier_score,
             "plain_logistic": self.plain_logistic.brier_score,
+            "elastic_net_raw": self.elastic_net_raw.brier_score,
             "elastic_net": self.elastic_net.brier_score,
         }
         return min(values, key=values.__getitem__)
@@ -138,6 +142,18 @@ def _unconditional_probabilities(target: pd.Series, index: pd.Index) -> pd.DataF
     return constant_probability_frame(vector, index)
 
 
+def _calibrate_probabilities(
+    validation_probabilities: pd.DataFrame,
+    validation_target: pd.Series,
+    test_probabilities: pd.DataFrame,
+    *,
+    method: str,
+) -> pd.DataFrame:
+    calibrator = MulticlassProbabilityCalibrator(CalibrationConfig(method=method))
+    calibrator.fit(validation_probabilities, validation_target)
+    return calibrator.transform(test_probabilities)
+
+
 def run_empirical_evaluation(
     dataset: TrainingDataset,
     *,
@@ -164,7 +180,9 @@ def run_empirical_evaluation(
     aggregate_probabilities: dict[str, list[pd.DataFrame]] = {
         "unconditional": [],
         "recency_weighted": [],
+        "plain_logistic_raw": [],
         "plain_logistic": [],
+        "elastic_net_raw": [],
         "elastic_net": [],
     }
 
@@ -190,16 +208,25 @@ def run_empirical_evaluation(
 
         elastic_net = ElasticNetMultinomialModel(model_config)
         elastic_net.fit(training_features, training_target)
-        validation_raw = _probability_frame(elastic_net, validation_features)
-        calibrator = MulticlassProbabilityCalibrator(
-            CalibrationConfig(method=run_config.calibration_method)
+        elastic_validation_raw = _probability_frame(elastic_net, validation_features)
+        elastic_test_raw = _probability_frame(elastic_net, test_features)
+        elastic_probabilities = _calibrate_probabilities(
+            elastic_validation_raw,
+            validation_target,
+            elastic_test_raw,
+            method=run_config.calibration_method,
         )
-        calibrator.fit(validation_raw, validation_target)
-        elastic_probabilities = calibrator.transform(_probability_frame(elastic_net, test_features))
 
         plain_logistic = PlainMultinomialLogisticModel(plain_logistic_config)
         plain_logistic.fit(training_features, training_target)
-        plain_probabilities = _probability_frame(plain_logistic, test_features)
+        plain_validation_raw = _probability_frame(plain_logistic, validation_features)
+        plain_test_raw = _probability_frame(plain_logistic, test_features)
+        plain_probabilities = _calibrate_probabilities(
+            plain_validation_raw,
+            validation_target,
+            plain_test_raw,
+            method=run_config.calibration_method,
+        )
 
         unconditional_probabilities = _unconditional_probabilities(training_target, test_index)
         recency_vector = recency_weighted_class_probabilities(
@@ -211,7 +238,9 @@ def run_empirical_evaluation(
         benchmark_probabilities = {
             "unconditional": unconditional_probabilities,
             "recency_weighted": recency_probabilities,
+            "plain_logistic_raw": plain_test_raw,
             "plain_logistic": plain_probabilities,
+            "elastic_net_raw": elastic_test_raw,
             "elastic_net": elastic_probabilities,
         }
         benchmark_metrics = BenchmarkMetrics(
@@ -221,8 +250,14 @@ def run_empirical_evaluation(
             recency_weighted=_evaluate_metrics(
                 test_target, recency_probabilities, test_metadata, economic_evaluator
             ),
+            plain_logistic_raw=_evaluate_metrics(
+                test_target, plain_test_raw, test_metadata, economic_evaluator
+            ),
             plain_logistic=_evaluate_metrics(
                 test_target, plain_probabilities, test_metadata, economic_evaluator
+            ),
+            elastic_net_raw=_evaluate_metrics(
+                test_target, elastic_test_raw, test_metadata, economic_evaluator
             ),
             elastic_net=_evaluate_metrics(
                 test_target, elastic_probabilities, test_metadata, economic_evaluator
@@ -261,7 +296,9 @@ def run_empirical_evaluation(
     aggregate_benchmarks = BenchmarkMetrics(
         unconditional=combined_metrics["unconditional"],
         recency_weighted=combined_metrics["recency_weighted"],
+        plain_logistic_raw=combined_metrics["plain_logistic_raw"],
         plain_logistic=combined_metrics["plain_logistic"],
+        elastic_net_raw=combined_metrics["elastic_net_raw"],
         elastic_net=combined_metrics["elastic_net"],
     )
     aggregate_model = aggregate_benchmarks.elastic_net
