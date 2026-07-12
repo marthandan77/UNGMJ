@@ -9,12 +9,16 @@ __pycache__/
 # Streamlit secrets
 .streamlit/secrets.toml
 
-# Runtime data and model artifacts
+# Runtime data and logs
 data/cache/
 data/forecast_history.jsonl
-artifacts/
 reports/*.json
 reports/*.md
+
+# Model deployment path is intentionally version controlled for Streamlit.
+artifacts/*
+!artifacts/models/
+!artifacts/models/**
 
 # Local environment
 .env
