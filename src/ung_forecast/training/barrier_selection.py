@@ -13,6 +13,7 @@ import pandas as pd
 from ung_forecast.training.dataset import TrainingDataset, build_training_dataset
 from ung_forecast.validation.baselines import constant_probability_frame
 from ung_forecast.validation.metrics import CLASS_ORDER, multiclass_brier_score
+from ung_forecast.validation.purge import purge_overlapping_training_rows
 
 
 @dataclass(frozen=True, slots=True)
@@ -103,8 +104,9 @@ def select_barriers_fold_only(
     3. smallest lower multiplier;
     4. smallest upper multiplier.
 
-    Validation rows whose label end exceeds ``validation_end`` are excluded, so
-    no future path can cross into the untouched test interval.
+    Training rows whose labels reach validation are purged. Validation rows whose
+    label end exceeds ``validation_end`` are excluded, so no future path can cross
+    either evaluation boundary.
     """
 
     if training_index.empty or validation_index.empty:
@@ -128,6 +130,11 @@ def select_barriers_fold_only(
             horizon_key=horizon_key,
         )
         train_rows = dataset.features.index.intersection(training_index)
+        train_rows = purge_overlapping_training_rows(
+            train_rows,
+            dataset.label_end_time,
+            evaluation_start=validation_index[0],
+        )
         validation_rows = dataset.features.index.intersection(validation_index)
         if len(validation_rows):
             valid_end = pd.to_datetime(dataset.label_end_time.loc[validation_rows]) <= validation_end
