@@ -9,8 +9,8 @@ from ung_forecast.training.barrier_selection import (
     BarrierSelectionResult,
 )
 from ung_forecast.training.dataset import TrainingDataset
+from ung_forecast.training.runner_60m import SixtyMinuteFoldPlan, SixtyMinuteRunPlan
 from ung_forecast.training.sixty_minute_evaluation import evaluate_sixty_minute_plan
-from ung_forecast.training.sixty_minute_runner import SixtyMinuteFoldPlan, SixtyMinuteRunPlan
 
 
 def _plan() -> SixtyMinuteRunPlan:
