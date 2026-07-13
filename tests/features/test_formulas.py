@@ -8,6 +8,7 @@ import pytest
 
 from ung_forecast.features.formulas import (
     log_return,
+    price_scaled_volatility,
     realized_volatility,
     session_vwap,
     standardized_vwap_deviation,
@@ -45,6 +46,21 @@ def test_realized_volatility_is_root_sum_squared_returns() -> None:
     one_period = np.log(data["Close"] / data["Close"].shift(1))
     expected = math.sqrt(float(one_period.iloc[1:4].pow(2).sum()))
     assert result.iloc[3] == pytest.approx(expected)
+
+
+def test_price_scaled_volatility_has_price_units() -> None:
+    data = frame()
+    relative = realized_volatility(data["Close"], 3)
+    result = price_scaled_volatility(data["Close"], relative)
+    assert result.iloc[3] == pytest.approx(data["Close"].iloc[3] * relative.iloc[3])
+    assert result.name == "price_scaled_volatility"
+
+
+def test_price_scaled_volatility_requires_exact_alignment() -> None:
+    data = frame()
+    relative = realized_volatility(data["Close"], 3).iloc[1:]
+    with pytest.raises(ValueError, match="align exactly"):
+        price_scaled_volatility(data["Close"], relative)
 
 
 def test_session_vwap_uses_only_current_and_prior_rows() -> None:
