@@ -69,6 +69,25 @@ class HistoricalRunConfig:
 
 
 @dataclass(frozen=True, slots=True)
+class FoldDiagnosticSummary:
+    fold_number: int
+    lower_multiplier: float
+    upper_multiplier: float
+    training_class_counts: dict[str, int]
+    validation_class_counts: dict[str, int]
+    test_class_counts: dict[str, int]
+    unconditional_brier: float
+    recency_weighted_brier: float
+    plain_logistic_raw_brier: float
+    plain_logistic_calibrated_brier: float
+    elastic_net_raw_brier: float
+    elastic_net_calibrated_brier: float
+    plain_calibration_brier_delta: float
+    elastic_calibration_brier_delta: float
+    best_brier_model: str
+
+
+@dataclass(frozen=True, slots=True)
 class HistoricalRunSummary:
     symbol: str
     source: str
@@ -86,6 +105,7 @@ class HistoricalRunSummary:
     unconditional_brier: float
     test_sample_count: int
     selected_barriers: tuple[tuple[float, float], ...]
+    fold_diagnostics: tuple[FoldDiagnosticSummary, ...]
     artifact_directory: str
     manifest_path: str
 
@@ -182,6 +202,14 @@ def _pipeline_config(config: HistoricalRunConfig) -> SixtyMinutePipelineConfig:
     )
 
 
+def _counts_payload(lower_first: int, upper_first: int, neither: int) -> dict[str, int]:
+    return {
+        "LOWER_FIRST": lower_first,
+        "UPPER_FIRST": upper_first,
+        "NEITHER": neither,
+    }
+
+
 def execute_historical_sixty_minute_run(
     config: HistoricalRunConfig,
 ) -> tuple[SixtyMinutePipelineResult, HistoricalRunSummary]:
@@ -200,6 +228,38 @@ def execute_historical_sixty_minute_run(
         config=_pipeline_config(config),
     )
     aggregate = result.report.aggregate_metrics
+    diagnostics = tuple(
+        FoldDiagnosticSummary(
+            fold_number=fold.fold_number,
+            lower_multiplier=fold.selected_lower_multiplier,
+            upper_multiplier=fold.selected_upper_multiplier,
+            training_class_counts=_counts_payload(
+                fold.training_class_counts.lower_first,
+                fold.training_class_counts.upper_first,
+                fold.training_class_counts.neither,
+            ),
+            validation_class_counts=_counts_payload(
+                fold.validation_class_counts.lower_first,
+                fold.validation_class_counts.upper_first,
+                fold.validation_class_counts.neither,
+            ),
+            test_class_counts=_counts_payload(
+                fold.test_class_counts.lower_first,
+                fold.test_class_counts.upper_first,
+                fold.test_class_counts.neither,
+            ),
+            unconditional_brier=fold.metrics.unconditional.brier_score,
+            recency_weighted_brier=fold.metrics.recency_weighted.brier_score,
+            plain_logistic_raw_brier=fold.metrics.plain_logistic_raw.brier_score,
+            plain_logistic_calibrated_brier=fold.metrics.plain_logistic.brier_score,
+            elastic_net_raw_brier=fold.metrics.elastic_net_raw.brier_score,
+            elastic_net_calibrated_brier=fold.metrics.elastic_net.brier_score,
+            plain_calibration_brier_delta=fold.plain_calibration_brier_delta,
+            elastic_calibration_brier_delta=fold.elastic_calibration_brier_delta,
+            best_brier_model=fold.best_brier_model,
+        )
+        for fold in result.evaluation.folds
+    )
     summary = HistoricalRunSummary(
         symbol=config.symbol,
         source=config.source,
@@ -223,6 +283,7 @@ def execute_historical_sixty_minute_run(
             )
             for fold in result.plan.folds
         ),
+        fold_diagnostics=diagnostics,
         artifact_directory=str(result.artifact.artifact_directory),
         manifest_path=str(result.artifact.artifact_directory.parent / "manifest.json"),
     )
