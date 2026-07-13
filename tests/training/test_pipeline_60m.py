@@ -6,15 +6,17 @@ from typing import Any, cast
 
 import pandas as pd
 import pytest
-
 from ung_forecast.training import pipeline_60m
+from ung_forecast.training.barrier_selection import (
+    BarrierCandidate,
+    BarrierSelectionConfig,
+)
 from ung_forecast.training.pipeline_60m import (
     SixtyMinutePipelineConfig,
     run_sixty_minute_research_pipeline,
 )
 from ung_forecast.training.runner_60m import SixtyMinuteRunnerConfig
 from ung_forecast.training.sixty_minute_artifact import SixtyMinuteFinalFitConfig
-from ung_forecast.training.barrier_selection import BarrierCandidate, BarrierSelectionConfig
 
 
 def _config() -> SixtyMinutePipelineConfig:
