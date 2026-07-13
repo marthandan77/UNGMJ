@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -48,6 +49,7 @@ class HorizonArtifactManifest(BaseModel):
     configuration_hash: str = Field(min_length=8)
     feature_names: tuple[str, ...] = Field(min_length=1)
     includes_comparison: bool = False
+    probability_mode: Literal["raw", "calibrated"] = "calibrated"
     statistical_approved: bool
     approval_reasons: tuple[str, ...] = ()
     metrics: StatisticalMetricsSnapshot
