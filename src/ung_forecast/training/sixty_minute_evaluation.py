@@ -40,11 +40,28 @@ class SixtyMinuteEvaluationConfig:
 
 
 @dataclass(frozen=True, slots=True)
+class ClassCounts:
+    lower_first: int
+    upper_first: int
+    neither: int
+
+    @property
+    def total(self) -> int:
+        return self.lower_first + self.upper_first + self.neither
+
+
+@dataclass(frozen=True, slots=True)
 class SixtyMinuteFoldEvaluation:
     fold_number: int
     selected_lower_multiplier: float
     selected_upper_multiplier: float
     metrics: BenchmarkMetrics
+    training_class_counts: ClassCounts
+    validation_class_counts: ClassCounts
+    test_class_counts: ClassCounts
+    plain_calibration_brier_delta: float
+    elastic_calibration_brier_delta: float
+    best_brier_model: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -75,6 +92,15 @@ def _metrics(target: pd.Series, probabilities: pd.DataFrame) -> ValidationMetric
         calibration_error=expected_calibration_error(target, probabilities),
         economic_value=float("nan"),
         sample_count=len(target),
+    )
+
+
+def _class_counts(target: pd.Series) -> ClassCounts:
+    counts = target.astype(str).value_counts()
+    return ClassCounts(
+        lower_first=int(counts.get("LOWER_FIRST", 0)),
+        upper_first=int(counts.get("UPPER_FIRST", 0)),
+        neither=int(counts.get("NEITHER", 0)),
     )
 
 
@@ -166,6 +192,16 @@ def evaluate_sixty_minute_plan(
                 selected_lower_multiplier=fold.selected_barrier.lower_multiplier,
                 selected_upper_multiplier=fold.selected_barrier.upper_multiplier,
                 metrics=metrics,
+                training_class_counts=_class_counts(train_y),
+                validation_class_counts=_class_counts(validation_y),
+                test_class_counts=_class_counts(test_y),
+                plain_calibration_brier_delta=(
+                    metrics.plain_logistic.brier_score - metrics.plain_logistic_raw.brier_score
+                ),
+                elastic_calibration_brier_delta=(
+                    metrics.elastic_net.brier_score - metrics.elastic_net_raw.brier_score
+                ),
+                best_brier_model=metrics.best_brier_name(),
             )
         )
         aggregate_targets.append(test_y)
