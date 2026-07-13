@@ -74,6 +74,8 @@ class FoldDiagnosticSummary:
     fold_number: int
     lower_multiplier: float
     upper_multiplier: float
+    elastic_net_c: float
+    elastic_net_l1_ratio: float
     training_class_counts: dict[str, int]
     validation_class_counts: dict[str, int]
     test_class_counts: dict[str, int]
@@ -95,6 +97,14 @@ class FoldDiagnosticSummary:
     elastic_selection_calibrated_brier: float
     plain_calibration_brier_delta: float
     elastic_calibration_brier_delta: float
+    validation_feature_mahalanobis: float
+    test_feature_mahalanobis: float
+    elastic_coefficient_l2_norm: float
+    elastic_coefficient_nonzero_count: int
+    elastic_coefficient_total_count: int
+    plain_coefficient_l2_norm: float
+    plain_coefficient_nonzero_count: int
+    plain_coefficient_total_count: int
     best_brier_model: str
 
 
@@ -246,6 +256,8 @@ def execute_historical_sixty_minute_run(
             fold_number=fold.fold_number,
             lower_multiplier=fold.selected_lower_multiplier,
             upper_multiplier=fold.selected_upper_multiplier,
+            elastic_net_c=fold.elastic_net_config.c,
+            elastic_net_l1_ratio=fold.elastic_net_config.l1_ratio,
             training_class_counts=_counts_payload(
                 fold.training_class_counts.lower_first,
                 fold.training_class_counts.upper_first,
@@ -279,6 +291,14 @@ def execute_historical_sixty_minute_run(
             elastic_selection_calibrated_brier=fold.elastic_selection_calibrated_brier,
             plain_calibration_brier_delta=fold.plain_calibration_brier_delta,
             elastic_calibration_brier_delta=fold.elastic_calibration_brier_delta,
+            validation_feature_mahalanobis=fold.feature_drift.validation_mahalanobis,
+            test_feature_mahalanobis=fold.feature_drift.test_mahalanobis,
+            elastic_coefficient_l2_norm=fold.elastic_coefficients.l2_norm,
+            elastic_coefficient_nonzero_count=fold.elastic_coefficients.nonzero_count,
+            elastic_coefficient_total_count=fold.elastic_coefficients.total_count,
+            plain_coefficient_l2_norm=fold.plain_coefficients.l2_norm,
+            plain_coefficient_nonzero_count=fold.plain_coefficients.nonzero_count,
+            plain_coefficient_total_count=fold.plain_coefficients.total_count,
             best_brier_model=fold.best_brier_model,
         )
         for fold in result.evaluation.folds
