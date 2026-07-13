@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -93,7 +93,7 @@ def _report() -> SixtyMinuteResearchReport:
 
 
 def test_writes_reloads_and_keeps_artifact_research_only(
-    tmp_path: pytest.TempPathFactory,
+    tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     dataset = _dataset()
@@ -117,7 +117,7 @@ def test_writes_reloads_and_keeps_artifact_research_only(
 
 
 def test_rejects_calibration_tail_without_all_classes(
-    tmp_path: pytest.TempPathFactory,
+    tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     dataset = _dataset()
