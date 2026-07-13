@@ -129,7 +129,9 @@ def select_barriers_fold_only(
             required_bars=required_bars,
             horizon_key=horizon_key,
         )
-        train_rows = dataset.features.index.intersection(training_index)
+        train_rows = pd.DatetimeIndex(
+            dataset.features.index.intersection(training_index)
+        )
         train_rows = purge_overlapping_training_rows(
             train_rows,
             dataset.label_end_time,
