@@ -20,13 +20,21 @@ def _metrics(brier: float, log_loss: float = 0.5, calibration: float = 0.05) -> 
     )
 
 
-def _benchmarks(elastic_brier: float, plain_brier: float = 0.25) -> BenchmarkMetrics:
+def _benchmarks(
+    elastic_brier: float,
+    *,
+    elastic_raw_brier: float | None = None,
+    plain_brier: float = 0.25,
+) -> BenchmarkMetrics:
     return BenchmarkMetrics(
         unconditional=_metrics(0.40, 0.9),
         recency_weighted=_metrics(0.38, 0.8),
         plain_logistic_raw=_metrics(plain_brier + 0.02, 0.65),
         plain_logistic=_metrics(plain_brier, 0.60),
-        elastic_net_raw=_metrics(elastic_brier + 0.02, 0.55),
+        elastic_net_raw=_metrics(
+            elastic_raw_brier if elastic_raw_brier is not None else elastic_brier + 0.02,
+            0.55,
+        ),
         elastic_net=_metrics(elastic_brier, 0.50),
     )
 
@@ -66,7 +74,7 @@ def _fold(
     )
 
 
-def test_approves_only_when_elastic_net_wins_every_gate() -> None:
+def test_approves_only_when_production_elastic_net_wins_every_external_gate() -> None:
     benchmarks = _benchmarks(0.20)
     evaluation = SixtyMinuteEvaluationResult(
         folds=(_fold(1, 1.0, 1.0, benchmarks),),
@@ -81,7 +89,19 @@ def test_approves_only_when_elastic_net_wins_every_gate() -> None:
     assert report.aggregate_best_brier_model == "elastic_net"
 
 
-def test_rejects_when_plain_logistic_has_better_brier() -> None:
+def test_internal_raw_elastic_net_is_diagnostic_not_external_challenger() -> None:
+    benchmarks = _benchmarks(0.20, elastic_raw_brier=0.15)
+    evaluation = SixtyMinuteEvaluationResult(
+        folds=(_fold(1, 1.0, 1.0, benchmarks),),
+        aggregate=benchmarks,
+    )
+    report = build_sixty_minute_research_report(evaluation)
+    assert report.statistically_approved is True
+    assert report.approval_reasons == ()
+    assert report.aggregate_best_brier_model == "elastic_net"
+
+
+def test_rejects_when_plain_logistic_production_stream_has_better_brier() -> None:
     benchmarks = _benchmarks(0.30, plain_brier=0.20)
     evaluation = SixtyMinuteEvaluationResult(
         folds=(_fold(1, 1.0, 1.0, benchmarks),),
@@ -89,10 +109,11 @@ def test_rejects_when_plain_logistic_has_better_brier() -> None:
     )
     report = build_sixty_minute_research_report(evaluation)
     assert report.statistically_approved is False
-    assert "elastic_net_not_best_brier_benchmark" in report.approval_reasons
+    assert "brier_not_better_than_plain_logistic" in report.approval_reasons
+    assert report.aggregate_best_brier_model == "plain_logistic"
 
 
-def test_rejects_when_any_fold_fails() -> None:
+def test_rejects_when_any_fold_fails_external_comparison() -> None:
     winning = _benchmarks(0.20)
     losing = _benchmarks(0.31, plain_brier=0.21)
     evaluation = SixtyMinuteEvaluationResult(
