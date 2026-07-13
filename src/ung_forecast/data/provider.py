@@ -66,18 +66,7 @@ class YFinanceProvider:
             raise ValueError(f"Unable to identify symbol columns for {symbol}")
         return result
 
-    def download(
-        self,
-        *,
-        symbol: str,
-        interval: str,
-        period: str,
-        as_of: datetime | None = None,
-    ) -> MarketDataBundle:
-        effective_as_of = as_of or datetime.now(UTC)
-        if effective_as_of.tzinfo is None:
-            raise ValueError("as_of must be timezone-aware")
-
+    def _download_frame(self, *, symbol: str, interval: str, period: str) -> pd.DataFrame:
         raw = yf.download(
             tickers=symbol,
             period=period,
@@ -89,21 +78,34 @@ class YFinanceProvider:
         )
         if raw.empty:
             raise ValueError(f"yfinance returned no data for {symbol} at {interval}")
-
         flattened = self._flatten_columns(raw, symbol)
         if not isinstance(flattened.index, pd.DatetimeIndex):
             raise ValueError("yfinance data must use a DatetimeIndex")
-        index = flattened.index
+        return flattened
+
+    def _bundle(
+        self,
+        frame: pd.DataFrame,
+        *,
+        symbol: str,
+        interval: str,
+        as_of: datetime,
+        stale_after: timedelta,
+    ) -> MarketDataBundle:
+        if as_of.tzinfo is None:
+            raise ValueError("as_of must be timezone-aware")
+        index = frame.index
         source_timezone = str(index.tz) if index.tz is not None else "naive"
+        normalized = frame.copy()
         if index.tz is None:
-            flattened.index = index.tz_localize(self.timezone)
+            normalized.index = index.tz_localize(self.timezone)
 
         validated = validate_ohlcv(
-            flattened,
+            normalized,
             interval=interval,
-            as_of=effective_as_of,
+            as_of=as_of,
             timezone=self.timezone,
-            stale_after=self._default_stale_after(interval),
+            stale_after=stale_after,
         )
         provenance = DataProvenance(
             provider="yfinance",
@@ -115,3 +117,45 @@ class YFinanceProvider:
             adjusted_prices=self.adjusted_prices,
         )
         return MarketDataBundle(frame=validated, provenance=provenance)
+
+    def download(
+        self,
+        *,
+        symbol: str,
+        interval: str,
+        period: str,
+        as_of: datetime | None = None,
+    ) -> MarketDataBundle:
+        effective_as_of = as_of or datetime.now(UTC)
+        frame = self._download_frame(symbol=symbol, interval=interval, period=period)
+        return self._bundle(
+            frame,
+            symbol=symbol,
+            interval=interval,
+            as_of=effective_as_of,
+            stale_after=self._default_stale_after(interval),
+        )
+
+    def download_historical(
+        self,
+        *,
+        symbol: str,
+        interval: str,
+        period: str,
+    ) -> MarketDataBundle:
+        """Download historical data without applying live-feed freshness rejection."""
+
+        frame = self._download_frame(symbol=symbol, interval=interval, period=period)
+        if not isinstance(frame.index, pd.DatetimeIndex) or frame.index.empty:
+            raise ValueError("Historical yfinance data requires a non-empty DatetimeIndex")
+        latest = pd.Timestamp(frame.index[-1])
+        if latest.tzinfo is None:
+            latest = latest.tz_localize(self.timezone)
+        as_of = latest.to_pydatetime() + timedelta(seconds=1)
+        return self._bundle(
+            frame,
+            symbol=symbol,
+            interval=interval,
+            as_of=as_of,
+            stale_after=timedelta(days=1),
+        )
