@@ -50,6 +50,8 @@ class HorizonArtifactManifest(BaseModel):
     feature_names: tuple[str, ...] = Field(min_length=1)
     includes_comparison: bool = False
     probability_mode: Literal["raw", "calibrated"] = "calibrated"
+    elastic_net_c: float | None = Field(default=None, gt=0.0)
+    elastic_net_l1_ratio: float | None = Field(default=None, ge=0.0, le=1.0)
     statistical_approved: bool
     approval_reasons: tuple[str, ...] = ()
     metrics: StatisticalMetricsSnapshot
@@ -64,4 +66,6 @@ class HorizonArtifactManifest(BaseModel):
             raise ValueError("Research-only artifacts require at least one approval reason")
         if len(set(self.feature_names)) != len(self.feature_names):
             raise ValueError("feature_names must be unique and ordered")
+        if (self.elastic_net_c is None) != (self.elastic_net_l1_ratio is None):
+            raise ValueError("Elastic Net manifest parameters must be provided together")
         return self
