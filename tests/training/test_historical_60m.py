@@ -8,6 +8,7 @@ from typing import Any, cast
 import pandas as pd
 import pytest
 
+from ung_forecast.models.elastic_net import ElasticNetConfig
 from ung_forecast.training import historical_60m
 from ung_forecast.training.historical_60m import (
     FoldDiagnosticSummary,
@@ -32,6 +33,8 @@ def _diagnostic() -> FoldDiagnosticSummary:
         fold_number=1,
         lower_multiplier=1.0,
         upper_multiplier=1.25,
+        elastic_net_c=0.5,
+        elastic_net_l1_ratio=0.25,
         training_class_counts={"LOWER_FIRST": 10, "UPPER_FIRST": 10, "NEITHER": 10},
         validation_class_counts={"LOWER_FIRST": 3, "UPPER_FIRST": 3, "NEITHER": 4},
         test_class_counts={"LOWER_FIRST": 3, "UPPER_FIRST": 3, "NEITHER": 4},
@@ -53,6 +56,14 @@ def _diagnostic() -> FoldDiagnosticSummary:
         elastic_selection_calibrated_brier=0.44,
         plain_calibration_brier_delta=-0.01,
         elastic_calibration_brier_delta=0.01,
+        validation_feature_mahalanobis=0.5,
+        test_feature_mahalanobis=0.75,
+        elastic_coefficient_l2_norm=2.0,
+        elastic_coefficient_nonzero_count=5,
+        elastic_coefficient_total_count=6,
+        plain_coefficient_l2_norm=3.0,
+        plain_coefficient_nonzero_count=6,
+        plain_coefficient_total_count=6,
         best_brier_model="elastic_net_raw",
     )
 
@@ -109,6 +120,8 @@ def test_summary_writes_calibration_selection_diagnostics(tmp_path: Path) -> Non
     assert diagnostic["elastic_probability_mode"] == "raw"
     assert diagnostic["calibration_fit_rows"] == 5
     assert diagnostic["test_class_counts"]["NEITHER"] == 4
+    assert diagnostic["elastic_net_c"] == 0.5
+    assert diagnostic["test_feature_mahalanobis"] == 0.75
 
 
 def test_execution_price_scales_volatility_and_serializes_selected_mode(
@@ -129,10 +142,12 @@ def test_execution_price_scales_volatility_and_serializes_selected_mode(
         ),
     )
     counts = SimpleNamespace(lower_first=10, upper_first=10, neither=10)
+    coefficient = SimpleNamespace(l2_norm=2.0, nonzero_count=5, total_count=6)
     evaluated_fold = SimpleNamespace(
         fold_number=1,
         selected_lower_multiplier=1.0,
         selected_upper_multiplier=1.25,
+        elastic_net_config=ElasticNetConfig(c=0.5, l1_ratio=0.25),
         training_class_counts=counts,
         validation_class_counts=counts,
         test_class_counts=counts,
@@ -149,6 +164,9 @@ def test_execution_price_scales_volatility_and_serializes_selected_mode(
         elastic_calibrated_test_brier=0.43,
         plain_calibration_brier_delta=-0.01,
         elastic_calibration_brier_delta=0.01,
+        feature_drift=SimpleNamespace(validation_mahalanobis=0.5, test_mahalanobis=0.75),
+        elastic_coefficients=coefficient,
+        plain_coefficients=coefficient,
         best_brier_model="elastic_net_raw",
     )
     artifact_directory = tmp_path / "models/60m/v1"
@@ -202,3 +220,4 @@ def test_execution_price_scales_volatility_and_serializes_selected_mode(
     )
     pd.testing.assert_series_equal(cast(pd.Series, captured["volatility"]), expected)
     assert summary.fold_diagnostics[0].elastic_probability_mode == "raw"
+    assert summary.fold_diagnostics[0].elastic_net_c == 0.5
