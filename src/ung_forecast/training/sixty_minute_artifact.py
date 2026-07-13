@@ -18,8 +18,13 @@ from ung_forecast.artifacts.manifest import (
 )
 from ung_forecast.artifacts.runtime import load_validated_artifacts
 from ung_forecast.horizons import HorizonKey
-from ung_forecast.models.calibration import CalibrationConfig, MulticlassProbabilityCalibrator
 from ung_forecast.models.elastic_net import ElasticNetConfig, ElasticNetMultinomialModel
+from ung_forecast.training.calibration_selection import (
+    CalibrationSelectionConfig,
+    ProbabilityMode,
+    fit_deployment_calibrator,
+    select_calibration_mode,
+)
 from ung_forecast.training.dataset import build_training_dataset
 from ung_forecast.training.runner_60m import HORIZON_KEY, REQUIRED_5M_BARS, SixtyMinuteRunPlan
 from ung_forecast.training.sixty_minute_evaluation import _probability_frame
@@ -33,6 +38,9 @@ class SixtyMinuteFinalFitConfig:
     configuration_hash: str
     calibration_rows: int = 250
     calibration_method: str = "platt"
+    calibration_fit_fraction: float = 0.5
+    minimum_calibration_fit_rows: int = 10
+    minimum_calibration_selection_rows: int = 10
     model_version: str = "60m-research-v1"
     feature_version: str = "features-v1"
     data_version: str = "runtime"
@@ -45,6 +53,15 @@ class SixtyMinuteFinalFitConfig:
             raise ValueError("calibration_rows must be positive")
         if not self.model_version or not self.feature_version or not self.data_version:
             raise ValueError("Artifact version fields cannot be empty")
+        self.calibration_selection_config()
+
+    def calibration_selection_config(self) -> CalibrationSelectionConfig:
+        return CalibrationSelectionConfig(
+            method=self.calibration_method,
+            fit_fraction=self.calibration_fit_fraction,
+            minimum_fit_rows=self.minimum_calibration_fit_rows,
+            minimum_selection_rows=self.minimum_calibration_selection_rows,
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -56,6 +73,7 @@ class SixtyMinuteArtifactResult:
     calibration_rows: int
     selected_lower_multiplier: float
     selected_upper_multiplier: float
+    probability_mode: ProbabilityMode
 
 
 def _sha256(path: Path) -> str:
@@ -86,6 +104,7 @@ def _manifest(
     feature_names: tuple[str, ...],
     model_file: ArtifactFile,
     calibrator_file: ArtifactFile,
+    probability_mode: ProbabilityMode,
 ) -> HorizonArtifactManifest:
     metrics = report.aggregate_metrics
     reasons = report.approval_reasons
@@ -102,6 +121,7 @@ def _manifest(
         includes_comparison=False,
         statistical_approved=report.statistically_approved,
         approval_reasons=reasons,
+        probability_mode=probability_mode,
         metrics=StatisticalMetricsSnapshot(
             brier_score=metrics.elastic_net.brier_score,
             log_loss=metrics.elastic_net.log_loss,
@@ -125,7 +145,7 @@ def fit_and_write_sixty_minute_artifact(
     artifact_root: str | Path,
     config: SixtyMinuteFinalFitConfig,
 ) -> SixtyMinuteArtifactResult:
-    """Fit with a held-out calibration tail and write the runtime manifest contract."""
+    """Fit the final model and freeze raw/calibrated mode without test leakage."""
 
     lower_multiplier, upper_multiplier = _selected_barrier(plan)
     dataset = build_training_dataset(
@@ -164,8 +184,17 @@ def fit_and_write_sixty_minute_artifact(
         model.predict_probabilities(dataset.features.loc[calibration_index]),
         calibration_index,
     )
-    calibrator = MulticlassProbabilityCalibrator(CalibrationConfig(method=config.calibration_method))
-    calibrator.fit(calibration_raw, calibration_target)
+    selection = select_calibration_mode(
+        calibration_raw,
+        calibration_target,
+        config=config.calibration_selection_config(),
+    )
+    deployment_calibrator = fit_deployment_calibrator(
+        calibration_raw,
+        calibration_target,
+        mode=selection.mode,
+        calibrated_method=config.calibration_method,
+    )
 
     artifact_directory = Path(artifact_root) / HorizonKey.MINUTES_60.value
     version_directory = artifact_directory / config.model_version
@@ -173,7 +202,7 @@ def fit_and_write_sixty_minute_artifact(
     model_path = version_directory / "model.joblib"
     calibrator_path = version_directory / "calibrator.joblib"
     joblib.dump(model, model_path)
-    joblib.dump(calibrator, calibrator_path)
+    joblib.dump(deployment_calibrator, calibrator_path)
 
     model_file = ArtifactFile(
         relative_path=f"{config.model_version}/model.joblib",
@@ -189,6 +218,7 @@ def fit_and_write_sixty_minute_artifact(
         feature_names=tuple(dataset.features.columns),
         model_file=model_file,
         calibrator_file=calibrator_file,
+        probability_mode=selection.mode,
     )
     manifest_path = artifact_directory / "manifest.json"
     temporary_manifest = artifact_directory / "manifest.json.tmp"
@@ -210,7 +240,7 @@ def fit_and_write_sixty_minute_artifact(
         probe = dataset.features.loc[calibration_index[-min(5, len(calibration_index)) :]]
         original_raw = _probability_frame(model.predict_probabilities(probe), probe.index)
         loaded_raw = _probability_frame(loaded.model.predict_probabilities(probe), probe.index)
-        original_probabilities = calibrator.transform(original_raw)
+        original_probabilities = deployment_calibrator.transform(original_raw)
         loaded_probabilities = loaded.calibrator.transform(loaded_raw)
         if not original_probabilities.equals(loaded_probabilities):
             raise ValueError("Artifact reload inference parity check failed")
@@ -223,4 +253,5 @@ def fit_and_write_sixty_minute_artifact(
         calibration_rows=len(calibration_index),
         selected_lower_multiplier=lower_multiplier,
         selected_upper_multiplier=upper_multiplier,
+        probability_mode=selection.mode,
     )
