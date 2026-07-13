@@ -17,6 +17,7 @@ from ung_forecast.features.engine import build_feature_frame
 from ung_forecast.features.formulas import price_scaled_volatility
 from ung_forecast.horizons import HorizonKey
 from ung_forecast.training.barrier_selection import BarrierCandidate, BarrierSelectionConfig
+from ung_forecast.training.elastic_net_selection import ElasticNetSelectionConfig
 from ung_forecast.training.pipeline_60m import (
     SixtyMinutePipelineConfig,
     SixtyMinutePipelineResult,
@@ -200,7 +201,9 @@ def _pipeline_config(config: HistoricalRunConfig) -> SixtyMinutePipelineConfig:
                 require_all_classes=True,
             ),
         ),
-        evaluation=SixtyMinuteEvaluationConfig(),
+        evaluation=SixtyMinuteEvaluationConfig(
+            elastic_net_selection=ElasticNetSelectionConfig(),
+        ),
         approval=StatisticalApprovalCriteria(),
         final_fit=SixtyMinuteFinalFitConfig(
             configuration_hash=application.quantitative_configuration_hash,
