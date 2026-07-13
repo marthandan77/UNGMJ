@@ -104,9 +104,9 @@ def select_barriers_fold_only(
     3. smallest lower multiplier;
     4. smallest upper multiplier.
 
-    Training rows whose labels reach validation are purged. Validation rows whose
-    label end exceeds ``validation_end`` are excluded, so no future path can cross
-    either evaluation boundary.
+    Training rows whose labels reach validation are purged. Validation labels
+    must end strictly before ``validation_end`` so the first test timestamp is
+    never consumed by barrier selection.
     """
 
     if training_index.empty or validation_index.empty:
@@ -115,6 +115,8 @@ def select_barriers_fold_only(
         raise ValueError("required_bars must be positive")
     if training_index.max() >= validation_index.min():
         raise ValueError("Training observations must precede validation observations")
+    if validation_end <= validation_index.min():
+        raise ValueError("validation_end must follow the validation start")
 
     outcomes: list[BarrierCandidateResult] = []
     ranked: list[tuple[float, int, float, float, BarrierCandidate]] = []
@@ -129,18 +131,18 @@ def select_barriers_fold_only(
             required_bars=required_bars,
             horizon_key=horizon_key,
         )
-        train_rows = pd.DatetimeIndex(
-            dataset.features.index.intersection(training_index)
-        )
+        train_rows = pd.DatetimeIndex(dataset.features.index.intersection(training_index))
         train_rows = purge_overlapping_training_rows(
             train_rows,
             dataset.label_end_time,
             evaluation_start=validation_index[0],
         )
-        validation_rows = dataset.features.index.intersection(validation_index)
+        validation_rows = pd.DatetimeIndex(
+            dataset.features.index.intersection(validation_index)
+        )
         if len(validation_rows):
-            valid_end = pd.to_datetime(dataset.label_end_time.loc[validation_rows]) <= validation_end
-            validation_rows = validation_rows[valid_end.to_numpy()]
+            valid_end = pd.to_datetime(dataset.label_end_time.loc[validation_rows]) < validation_end
+            validation_rows = pd.DatetimeIndex(validation_rows[valid_end.to_numpy()])
 
         training_target = dataset.target.loc[train_rows]
         validation_target = dataset.target.loc[validation_rows]
