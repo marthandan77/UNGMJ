@@ -13,7 +13,7 @@ from ung_forecast.training.runner_60m import SixtyMinuteFoldPlan, SixtyMinuteRun
 from ung_forecast.training.sixty_minute_evaluation import evaluate_sixty_minute_plan
 
 
-def _plan() -> SixtyMinuteRunPlan:
+def _plan(*, rotate_test_labels: bool = False) -> SixtyMinuteRunPlan:
     rows = 108
     index = pd.date_range("2025-01-01", periods=rows, freq="5min", tz="UTC")
     phase = np.arange(rows)
@@ -26,7 +26,10 @@ def _plan() -> SixtyMinuteRunPlan:
         },
         index=index,
     )
-    target = pd.Series(labels, index=index, name="target")
+    target_labels = labels.copy()
+    if rotate_test_labels:
+        target_labels[84:] = np.roll(target_labels[84:], 1)
+    target = pd.Series(target_labels, index=index, name="target")
     label_end = pd.Series(index + pd.Timedelta(minutes=60), index=index, name="label_end_time")
     metadata = pd.DataFrame(index=index)
     dataset = TrainingDataset(features, target, label_end, metadata)
@@ -55,7 +58,7 @@ def _plan() -> SixtyMinuteRunPlan:
     return SixtyMinuteRunPlan(folds=(fold,))
 
 
-def test_evaluates_all_raw_calibrated_and_baseline_models() -> None:
+def test_evaluates_selected_raw_and_baseline_models() -> None:
     result = evaluate_sixty_minute_plan(_plan())
     metrics = result.aggregate
     assert len(result.folds) == 1
@@ -81,6 +84,10 @@ def test_preserves_selected_barrier_and_fold_diagnostics() -> None:
     assert fold.training_class_counts.lower_first == 20
     assert fold.training_class_counts.upper_first == 20
     assert fold.training_class_counts.neither == 20
+    assert fold.calibration_fit_rows == 12
+    assert fold.calibration_selection_rows == 12
+    assert fold.plain_probability_mode in {"raw", "calibrated"}
+    assert fold.elastic_probability_mode in {"raw", "calibrated"}
     assert fold.best_brier_model in {
         "unconditional",
         "recency_weighted",
@@ -90,8 +97,25 @@ def test_preserves_selected_barrier_and_fold_diagnostics() -> None:
         "elastic_net",
     }
     assert fold.plain_calibration_brier_delta == (
-        fold.metrics.plain_logistic.brier_score - fold.metrics.plain_logistic_raw.brier_score
+        fold.plain_calibrated_test_brier - fold.metrics.plain_logistic_raw.brier_score
     )
     assert fold.elastic_calibration_brier_delta == (
-        fold.metrics.elastic_net.brier_score - fold.metrics.elastic_net_raw.brier_score
+        fold.elastic_calibrated_test_brier - fold.metrics.elastic_net_raw.brier_score
+    )
+
+
+def test_probability_mode_is_independent_of_test_labels() -> None:
+    original = evaluate_sixty_minute_plan(_plan()).folds[0]
+    changed_test = evaluate_sixty_minute_plan(_plan(rotate_test_labels=True)).folds[0]
+    assert original.plain_probability_mode == changed_test.plain_probability_mode
+    assert original.elastic_probability_mode == changed_test.elastic_probability_mode
+    assert original.plain_selection_raw_brier == changed_test.plain_selection_raw_brier
+    assert (
+        original.plain_selection_calibrated_brier
+        == changed_test.plain_selection_calibrated_brier
+    )
+    assert original.elastic_selection_raw_brier == changed_test.elastic_selection_raw_brier
+    assert (
+        original.elastic_selection_calibrated_brier
+        == changed_test.elastic_selection_calibrated_brier
     )
