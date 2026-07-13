@@ -6,9 +6,18 @@ provider and renders validated objects from the core package.
 
 from __future__ import annotations
 
+import sys
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+
+# Streamlit Community Cloud can execute app.py before installing the local
+# src-layout package. Add the repository's src directory explicitly so the
+# application remains importable even when editable-install behavior is skipped.
+REPOSITORY_ROOT = Path(__file__).resolve().parent
+SRC_ROOT = REPOSITORY_ROOT / "src"
+if SRC_ROOT.is_dir() and str(SRC_ROOT) not in sys.path:
+    sys.path.insert(0, str(SRC_ROOT))
 
 import streamlit as st
 
