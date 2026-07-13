@@ -31,7 +31,12 @@ def _benchmarks(elastic_brier: float, plain_brier: float = 0.25) -> BenchmarkMet
     )
 
 
-def _fold(number: int, lower: float, upper: float, benchmarks: BenchmarkMetrics) -> SixtyMinuteFoldEvaluation:
+def _fold(
+    number: int,
+    lower: float,
+    upper: float,
+    benchmarks: BenchmarkMetrics,
+) -> SixtyMinuteFoldEvaluation:
     counts = ClassCounts(lower_first=100, upper_first=100, neither=100)
     return SixtyMinuteFoldEvaluation(
         fold_number=number,
@@ -41,6 +46,16 @@ def _fold(number: int, lower: float, upper: float, benchmarks: BenchmarkMetrics)
         training_class_counts=counts,
         validation_class_counts=counts,
         test_class_counts=counts,
+        plain_probability_mode="calibrated",
+        elastic_probability_mode="calibrated",
+        calibration_fit_rows=150,
+        calibration_selection_rows=150,
+        plain_selection_raw_brier=benchmarks.plain_logistic_raw.brier_score + 0.01,
+        plain_selection_calibrated_brier=benchmarks.plain_logistic.brier_score,
+        elastic_selection_raw_brier=benchmarks.elastic_net_raw.brier_score + 0.01,
+        elastic_selection_calibrated_brier=benchmarks.elastic_net.brier_score,
+        plain_calibrated_test_brier=benchmarks.plain_logistic.brier_score,
+        elastic_calibrated_test_brier=benchmarks.elastic_net.brier_score,
         plain_calibration_brier_delta=(
             benchmarks.plain_logistic.brier_score - benchmarks.plain_logistic_raw.brier_score
         ),
