@@ -6,6 +6,7 @@ from typing import Any, cast
 
 import pandas as pd
 import pytest
+
 from ung_forecast.training import pipeline_60m
 from ung_forecast.training.barrier_selection import (
     BarrierCandidate,
