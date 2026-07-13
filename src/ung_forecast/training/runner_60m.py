@@ -34,6 +34,12 @@ class SixtyMinuteRunnerConfig:
     embargo_size: int
     barrier_selection: BarrierSelectionConfig
 
+    def __post_init__(self) -> None:
+        if min(self.minimum_train_size, self.validation_size, self.test_size) <= 0:
+            raise ValueError("Fold sizes must be positive")
+        if self.purge_size < 0 or self.embargo_size < 0:
+            raise ValueError("Purge and embargo sizes cannot be negative")
+
 
 @dataclass(frozen=True, slots=True)
 class SixtyMinuteFoldPlan:
@@ -107,13 +113,14 @@ def build_sixty_minute_run_plan(
     plans: list[SixtyMinuteFoldPlan] = []
     for fold_number, fold in enumerate(folds, start=1):
         training_index, validation_index, test_index = _fold_indices(eligible_index, fold)
+        test_start = test_index[0]
         selection = select_barriers_fold_only(
             market_data,
             feature_frame,
             volatility,
             training_index=training_index,
             validation_index=validation_index,
-            validation_end=validation_index[-1],
+            validation_end=test_start,
             required_bars=REQUIRED_5M_BARS,
             horizon_key=HORIZON_KEY,
             config=config.barrier_selection,
@@ -139,8 +146,7 @@ def build_sixty_minute_run_plan(
         selected_validation = pd.DatetimeIndex(
             selected_validation[
                 (
-                    pd.to_datetime(dataset.label_end_time.loc[selected_validation])
-                    <= validation_index[-1]
+                    pd.to_datetime(dataset.label_end_time.loc[selected_validation]) < test_start
                 ).to_numpy()
             ]
         )
