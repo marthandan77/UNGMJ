@@ -7,6 +7,7 @@ from typing import Any, cast
 import pandas as pd
 import pytest
 
+from ung_forecast.models.elastic_net import ElasticNetConfig
 from ung_forecast.training import pipeline_60m
 from ung_forecast.training.barrier_selection import (
     BarrierCandidate,
@@ -14,6 +15,7 @@ from ung_forecast.training.barrier_selection import (
 )
 from ung_forecast.training.pipeline_60m import (
     SixtyMinutePipelineConfig,
+    _selected_final_elastic_net_config,
     run_sixty_minute_research_pipeline,
 )
 from ung_forecast.training.runner_60m import SixtyMinuteRunnerConfig
@@ -43,19 +45,40 @@ def _config() -> SixtyMinutePipelineConfig:
     )
 
 
+def _evaluation(*configs: ElasticNetConfig) -> Any:
+    return cast(
+        Any,
+        SimpleNamespace(
+            folds=tuple(SimpleNamespace(elastic_net_config=config) for config in configs)
+        ),
+    )
+
+
+def test_selects_modal_nested_config_with_deterministic_tie_breaking() -> None:
+    first = ElasticNetConfig(c=0.1, l1_ratio=0.25)
+    second = ElasticNetConfig(c=1.0, l1_ratio=0.5)
+    assert _selected_final_elastic_net_config(_evaluation(second, first, second)) == second
+    assert _selected_final_elastic_net_config(_evaluation(second, first)) == first
+
+
 def test_runs_all_pipeline_stages_in_fixed_order(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls: list[str] = []
+    selected = ElasticNetConfig(c=0.1, l1_ratio=0.25)
     plan = cast(Any, SimpleNamespace())
-    evaluation = cast(Any, SimpleNamespace())
+    evaluation = _evaluation(selected)
     report = cast(Any, SimpleNamespace(statistically_approved=False))
     manifest = SimpleNamespace(
         statistical_approved=False,
         configuration_hash="12345678-pipeline",
     )
-    artifact = cast(Any, SimpleNamespace(manifest=manifest))
+    artifact = cast(
+        Any,
+        SimpleNamespace(manifest=manifest, elastic_net_config=selected),
+    )
+    captured: dict[str, object] = {}
 
     monkeypatch.setattr(
         pipeline_60m,
@@ -72,11 +95,13 @@ def test_runs_all_pipeline_stages_in_fixed_order(
         "build_sixty_minute_research_report",
         lambda *args, **kwargs: calls.append("report") or report,
     )
-    monkeypatch.setattr(
-        pipeline_60m,
-        "fit_and_write_sixty_minute_artifact",
-        lambda *args, **kwargs: calls.append("artifact") or artifact,
-    )
+
+    def fake_artifact(*args: object, **kwargs: object) -> Any:
+        calls.append("artifact")
+        captured["config"] = kwargs["config"]
+        return artifact
+
+    monkeypatch.setattr(pipeline_60m, "fit_and_write_sixty_minute_artifact", fake_artifact)
 
     result = run_sixty_minute_research_pipeline(
         pd.DataFrame(),
@@ -88,14 +113,16 @@ def test_runs_all_pipeline_stages_in_fixed_order(
     assert calls == ["plan", "evaluate", "report", "artifact"]
     assert result.report is report
     assert result.artifact is artifact
+    assert cast(SixtyMinuteFinalFitConfig, captured["config"]).elastic_net == selected
 
 
 def test_rejects_artifact_approval_mismatch(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    selected = ElasticNetConfig(c=0.1, l1_ratio=0.25)
     plan = cast(Any, SimpleNamespace())
-    evaluation = cast(Any, SimpleNamespace())
+    evaluation = _evaluation(selected)
     report = cast(Any, SimpleNamespace(statistically_approved=True))
     artifact = cast(
         Any,
@@ -103,7 +130,8 @@ def test_rejects_artifact_approval_mismatch(
             manifest=SimpleNamespace(
                 statistical_approved=False,
                 configuration_hash="12345678-pipeline",
-            )
+            ),
+            elastic_net_config=selected,
         ),
     )
     monkeypatch.setattr(pipeline_60m, "build_sixty_minute_run_plan", lambda *a, **k: plan)
