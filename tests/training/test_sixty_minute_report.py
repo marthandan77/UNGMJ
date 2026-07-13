@@ -2,6 +2,10 @@ from __future__ import annotations
 
 from ung_forecast.models.elastic_net import ElasticNetConfig
 from ung_forecast.training.empirical import BenchmarkMetrics
+from ung_forecast.training.fold_diagnostics import (
+    CoefficientDiagnostics,
+    FeatureDriftDiagnostics,
+)
 from ung_forecast.training.sixty_minute_evaluation import (
     ClassCounts,
     SixtyMinuteEvaluationResult,
@@ -47,6 +51,7 @@ def _fold(
     benchmarks: BenchmarkMetrics,
 ) -> SixtyMinuteFoldEvaluation:
     counts = ClassCounts(lower_first=100, upper_first=100, neither=100)
+    coefficients = CoefficientDiagnostics(l2_norm=1.0, nonzero_count=3, total_count=6)
     return SixtyMinuteFoldEvaluation(
         fold_number=number,
         selected_lower_multiplier=lower,
@@ -74,6 +79,12 @@ def _fold(
         best_brier_model=benchmarks.best_brier_name(),
         elastic_net_config=ElasticNetConfig(),
         elastic_net_selection=None,
+        feature_drift=FeatureDriftDiagnostics(
+            validation_mahalanobis=0.0,
+            test_mahalanobis=0.0,
+        ),
+        elastic_coefficients=coefficients,
+        plain_coefficients=coefficients,
     )
 
 
