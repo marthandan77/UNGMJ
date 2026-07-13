@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from ung_forecast.models.elastic_net import ElasticNetConfig
 from ung_forecast.training.empirical import BenchmarkMetrics
 from ung_forecast.training.sixty_minute_evaluation import (
     ClassCounts,
@@ -71,6 +72,8 @@ def _fold(
             benchmarks.elastic_net.brier_score - benchmarks.elastic_net_raw.brier_score
         ),
         best_brier_model=benchmarks.best_brier_name(),
+        elastic_net_config=ElasticNetConfig(),
+        elastic_net_selection=None,
     )
 
 
