@@ -11,7 +11,7 @@ from ung_forecast.models.elastic_net import ElasticNetConfig, ElasticNetMultinom
 from ung_forecast.models.plain_logistic import PlainLogisticConfig, PlainMultinomialLogisticModel
 from ung_forecast.schemas import ProbabilityForecast
 from ung_forecast.training.empirical import BenchmarkMetrics
-from ung_forecast.training.sixty_minute_runner import SixtyMinuteRunPlan
+from ung_forecast.training.runner_60m import SixtyMinuteRunPlan
 from ung_forecast.validation.approval import ValidationMetrics
 from ung_forecast.validation.baselines import (
     RecencyWeightedBaselineConfig,
