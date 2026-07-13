@@ -88,7 +88,7 @@ def test_summary_writes_machine_readable_json(tmp_path: Path) -> None:
     assert payload["selected_barriers"] == [[1.0, 1.25]]
 
 
-def test_execution_reuses_feature_volatility_and_writes_summary(
+def test_execution_reuses_features_and_price_scales_volatility(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -164,7 +164,10 @@ def test_execution_reuses_feature_volatility_and_writes_summary(
 
     assert captured["market"] is market
     assert captured["features"] is feature_frame
-    assert cast(pd.Series, captured["volatility"]).equals(feature_frame["realized_volatility"])
+    expected = (market["Close"] * feature_frame["realized_volatility"]).rename(
+        "price_scaled_volatility"
+    )
+    pd.testing.assert_series_equal(cast(pd.Series, captured["volatility"]), expected)
     assert summary.fold_count == 1
     assert summary.selected_barriers == ((1.0, 1.25),)
     assert summary_path.exists()
