@@ -76,12 +76,22 @@ class FoldDiagnosticSummary:
     training_class_counts: dict[str, int]
     validation_class_counts: dict[str, int]
     test_class_counts: dict[str, int]
+    calibration_fit_rows: int
+    calibration_selection_rows: int
+    plain_probability_mode: str
+    elastic_probability_mode: str
     unconditional_brier: float
     recency_weighted_brier: float
     plain_logistic_raw_brier: float
+    plain_logistic_selected_brier: float
     plain_logistic_calibrated_brier: float
     elastic_net_raw_brier: float
+    elastic_net_selected_brier: float
     elastic_net_calibrated_brier: float
+    plain_selection_raw_brier: float
+    plain_selection_calibrated_brier: float
+    elastic_selection_raw_brier: float
+    elastic_selection_calibrated_brier: float
     plain_calibration_brier_delta: float
     elastic_calibration_brier_delta: float
     best_brier_model: str
@@ -248,12 +258,22 @@ def execute_historical_sixty_minute_run(
                 fold.test_class_counts.upper_first,
                 fold.test_class_counts.neither,
             ),
+            calibration_fit_rows=fold.calibration_fit_rows,
+            calibration_selection_rows=fold.calibration_selection_rows,
+            plain_probability_mode=fold.plain_probability_mode,
+            elastic_probability_mode=fold.elastic_probability_mode,
             unconditional_brier=fold.metrics.unconditional.brier_score,
             recency_weighted_brier=fold.metrics.recency_weighted.brier_score,
             plain_logistic_raw_brier=fold.metrics.plain_logistic_raw.brier_score,
-            plain_logistic_calibrated_brier=fold.metrics.plain_logistic.brier_score,
+            plain_logistic_selected_brier=fold.metrics.plain_logistic.brier_score,
+            plain_logistic_calibrated_brier=fold.plain_calibrated_test_brier,
             elastic_net_raw_brier=fold.metrics.elastic_net_raw.brier_score,
-            elastic_net_calibrated_brier=fold.metrics.elastic_net.brier_score,
+            elastic_net_selected_brier=fold.metrics.elastic_net.brier_score,
+            elastic_net_calibrated_brier=fold.elastic_calibrated_test_brier,
+            plain_selection_raw_brier=fold.plain_selection_raw_brier,
+            plain_selection_calibrated_brier=fold.plain_selection_calibrated_brier,
+            elastic_selection_raw_brier=fold.elastic_selection_raw_brier,
+            elastic_selection_calibrated_brier=fold.elastic_selection_calibrated_brier,
             plain_calibration_brier_delta=fold.plain_calibration_brier_delta,
             elastic_calibration_brier_delta=fold.elastic_calibration_brier_delta,
             best_brier_model=fold.best_brier_model,
