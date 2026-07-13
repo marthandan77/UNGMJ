@@ -6,6 +6,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from ung_forecast.artifacts import ArtifactState, discover_horizon_artifacts
+from ung_forecast.horizons import HorizonKey
 from ung_forecast.training import sixty_minute_artifact
 from ung_forecast.training.barrier_selection import (
     BarrierCandidate,
@@ -17,11 +19,12 @@ from ung_forecast.training.empirical import BenchmarkMetrics
 from ung_forecast.training.runner_60m import SixtyMinuteFoldPlan, SixtyMinuteRunPlan
 from ung_forecast.training.sixty_minute_artifact import (
     SixtyMinuteFinalFitConfig,
-    SixtyMinuteModelBundle,
     fit_and_write_sixty_minute_artifact,
 )
 from ung_forecast.training.sixty_minute_report import SixtyMinuteResearchReport
 from ung_forecast.validation.approval import ValidationMetrics
+
+CONFIGURATION_HASH = "12345678-test-configuration"
 
 
 def _dataset(rows: int = 150) -> TrainingDataset:
@@ -72,7 +75,7 @@ def _metric(value: float = 0.2) -> ValidationMetrics:
     return ValidationMetrics(value, value, 0.05, float("nan"), 60)
 
 
-def _report() -> SixtyMinuteResearchReport:
+def _report(*, approved: bool = True) -> SixtyMinuteResearchReport:
     metrics = BenchmarkMetrics(
         unconditional=_metric(0.7),
         recency_weighted=_metric(0.65),
@@ -84,15 +87,15 @@ def _report() -> SixtyMinuteResearchReport:
     return SixtyMinuteResearchReport(
         horizon_key="60m",
         fold_count=1,
-        statistically_approved=True,
-        approval_reasons=(),
+        statistically_approved=approved,
+        approval_reasons=() if approved else ("insufficient_samples",),
         aggregate_best_brier_model="elastic_net",
         aggregate_metrics=metrics,
         folds=(),
     )
 
 
-def test_writes_reloads_and_keeps_artifact_research_only(
+def test_writes_runtime_manifest_and_validated_artifacts(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -105,15 +108,52 @@ def test_writes_reloads_and_keeps_artifact_research_only(
         plan=_plan(dataset),
         report=_report(),
         artifact_root=tmp_path,
-        config=SixtyMinuteFinalFitConfig(calibration_rows=30, model_version="test-v1"),
+        config=SixtyMinuteFinalFitConfig(
+            configuration_hash=CONFIGURATION_HASH,
+            calibration_rows=30,
+            model_version="test-v1",
+        ),
     )
-    assert isinstance(result.bundle, SixtyMinuteModelBundle)
-    assert result.metadata.approved is False
-    assert result.metadata.artifact_sha256
+    assert result.manifest.statistical_approved is True
     assert result.training_rows == 118
     assert result.calibration_rows == 30
-    assert (result.artifact_directory / "model.joblib").exists()
-    assert (result.artifact_directory / "metadata.json").exists()
+    assert result.selected_lower_multiplier == 1.0
+    assert result.selected_upper_multiplier == 1.2
+    assert (result.version_directory / "model.joblib").exists()
+    assert (result.version_directory / "calibrator.joblib").exists()
+    assert (result.artifact_directory / "manifest.json").exists()
+    discovered = discover_horizon_artifacts(
+        tmp_path,
+        expected_configuration_hash=CONFIGURATION_HASH,
+    )[HorizonKey.MINUTES_60]
+    assert discovered.state is ArtifactState.VALIDATED
+
+
+def test_writes_research_only_state_when_statistical_gate_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    dataset = _dataset()
+    monkeypatch.setattr(sixty_minute_artifact, "build_training_dataset", lambda *a, **k: dataset)
+    result = fit_and_write_sixty_minute_artifact(
+        pd.DataFrame(index=dataset.features.index),
+        dataset.features,
+        pd.Series(1.0, index=dataset.features.index),
+        plan=_plan(dataset),
+        report=_report(approved=False),
+        artifact_root=tmp_path,
+        config=SixtyMinuteFinalFitConfig(
+            configuration_hash=CONFIGURATION_HASH,
+            calibration_rows=30,
+            model_version="research-v1",
+        ),
+    )
+    assert result.manifest.statistical_approved is False
+    discovered = discover_horizon_artifacts(
+        tmp_path,
+        expected_configuration_hash=CONFIGURATION_HASH,
+    )[HorizonKey.MINUTES_60]
+    assert discovered.state is ArtifactState.RESEARCH_ONLY
 
 
 def test_rejects_calibration_tail_without_all_classes(
@@ -133,5 +173,9 @@ def test_rejects_calibration_tail_without_all_classes(
             plan=_plan(dataset),
             report=_report(),
             artifact_root=tmp_path,
-            config=SixtyMinuteFinalFitConfig(calibration_rows=30, model_version="bad-v1"),
+            config=SixtyMinuteFinalFitConfig(
+                configuration_hash=CONFIGURATION_HASH,
+                calibration_rows=30,
+                model_version="bad-v1",
+            ),
         )
