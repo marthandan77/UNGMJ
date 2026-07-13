@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from dataclasses import asdict
 from pathlib import Path
 
 from ung_forecast.training.historical_60m import (
@@ -54,7 +55,7 @@ def main() -> int:
         calibration_rows=args.calibration_rows,
     )
     _, summary = execute_historical_sixty_minute_run(config)
-    print(json.dumps(summary.__dict__, indent=2, sort_keys=True, default=str))
+    print(json.dumps(asdict(summary), indent=2, sort_keys=True, default=str))
     return 0
 
 
