@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import pandas as pd
+
 from ung_forecast.training.runner_60m import (
     SixtyMinuteRunnerConfig,
     SixtyMinuteRunPlan,
