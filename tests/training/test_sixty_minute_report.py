@@ -116,7 +116,22 @@ def test_rejects_when_plain_logistic_production_stream_has_better_brier() -> Non
     assert report.aggregate_best_brier_model == "plain_logistic"
 
 
-def test_rejects_when_any_fold_fails_external_comparison() -> None:
+def test_accepts_small_fold_misses_when_win_rate_and_regret_are_stable() -> None:
+    winning = _benchmarks(0.20)
+    small_miss = _benchmarks(0.255, plain_brier=0.25)
+    folds = tuple(
+        _fold(number, 1.0, 1.0, small_miss if number in (2, 4) else winning)
+        for number in range(1, 9)
+    )
+    evaluation = SixtyMinuteEvaluationResult(folds=folds, aggregate=winning)
+    report = build_sixty_minute_research_report(evaluation)
+    assert report.statistically_approved is True
+    assert report.approval_reasons == ()
+    assert report.folds[1].decision.approved is False
+    assert report.folds[3].decision.approved is False
+
+
+def test_rejects_material_fold_instability() -> None:
     winning = _benchmarks(0.20)
     losing = _benchmarks(0.31, plain_brier=0.21)
     evaluation = SixtyMinuteEvaluationResult(
@@ -128,4 +143,5 @@ def test_rejects_when_any_fold_fails_external_comparison() -> None:
     )
     report = build_sixty_minute_research_report(evaluation)
     assert report.statistically_approved is False
-    assert "one_or_more_walk_forward_folds_failed" in report.approval_reasons
+    assert "fold_win_rate_below_plain_logistic" in report.approval_reasons
+    assert "fold_brier_regret_too_high_plain_logistic" in report.approval_reasons
