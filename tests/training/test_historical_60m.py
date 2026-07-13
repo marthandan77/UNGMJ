@@ -10,6 +10,7 @@ import pytest
 
 from ung_forecast.training import historical_60m
 from ung_forecast.training.historical_60m import (
+    FoldDiagnosticSummary,
     HistoricalRunConfig,
     HistoricalRunSummary,
     execute_historical_sixty_minute_run,
@@ -29,6 +30,26 @@ def _frame(rows: int = 80) -> pd.DataFrame:
             "Volume": 1000.0,
         },
         index=index,
+    )
+
+
+def _diagnostic() -> FoldDiagnosticSummary:
+    return FoldDiagnosticSummary(
+        fold_number=1,
+        lower_multiplier=1.0,
+        upper_multiplier=1.25,
+        training_class_counts={"LOWER_FIRST": 10, "UPPER_FIRST": 10, "NEITHER": 10},
+        validation_class_counts={"LOWER_FIRST": 3, "UPPER_FIRST": 3, "NEITHER": 4},
+        test_class_counts={"LOWER_FIRST": 3, "UPPER_FIRST": 3, "NEITHER": 4},
+        unconditional_brier=0.5,
+        recency_weighted_brier=0.48,
+        plain_logistic_raw_brier=0.45,
+        plain_logistic_calibrated_brier=0.44,
+        elastic_net_raw_brier=0.42,
+        elastic_net_calibrated_brier=0.43,
+        plain_calibration_brier_delta=-0.01,
+        elastic_calibration_brier_delta=0.01,
+        best_brier_model="elastic_net_raw",
     )
 
 
@@ -77,6 +98,7 @@ def test_summary_writes_machine_readable_json(tmp_path: Path) -> None:
         unconditional_brier=0.6,
         test_sample_count=60,
         selected_barriers=((1.0, 1.25),),
+        fold_diagnostics=(_diagnostic(),),
         artifact_directory="artifacts/models/60m/v1",
         manifest_path="artifacts/models/60m/manifest.json",
     )
@@ -86,6 +108,8 @@ def test_summary_writes_machine_readable_json(tmp_path: Path) -> None:
     assert payload["symbol"] == "UNG"
     assert payload["statistically_approved"] is False
     assert payload["selected_barriers"] == [[1.0, 1.25]]
+    assert payload["fold_diagnostics"][0]["best_brier_model"] == "elastic_net_raw"
+    assert payload["fold_diagnostics"][0]["test_class_counts"]["NEITHER"] == 4
 
 
 def test_execution_reuses_features_and_price_scales_volatility(
@@ -102,30 +126,48 @@ def test_execution_reuses_features_and_price_scales_volatility(
         assert_no_future_sources=lambda: None,
     )
     metrics = SimpleNamespace(
+        unconditional=SimpleNamespace(brier_score=0.5),
+        recency_weighted=SimpleNamespace(brier_score=0.48),
+        plain_logistic_raw=SimpleNamespace(brier_score=0.45),
+        plain_logistic=SimpleNamespace(brier_score=0.44),
+        elastic_net_raw=SimpleNamespace(brier_score=0.42),
         elastic_net=SimpleNamespace(
-            brier_score=0.4,
+            brier_score=0.43,
             log_loss=0.8,
             calibration_error=0.1,
             sample_count=20,
         ),
-        unconditional=SimpleNamespace(brier_score=0.5),
     )
     report = SimpleNamespace(
         aggregate_metrics=metrics,
         fold_count=1,
         statistically_approved=False,
         approval_reasons=("research_only",),
-        aggregate_best_brier_model="unconditional",
+        aggregate_best_brier_model="elastic_net_raw",
     )
-    fold = SimpleNamespace(
+    planned_fold = SimpleNamespace(
         selected_barrier=SimpleNamespace(lower_multiplier=1.0, upper_multiplier=1.25)
+    )
+    class_counts = SimpleNamespace(lower_first=10, upper_first=10, neither=10)
+    evaluated_fold = SimpleNamespace(
+        fold_number=1,
+        selected_lower_multiplier=1.0,
+        selected_upper_multiplier=1.25,
+        training_class_counts=class_counts,
+        validation_class_counts=SimpleNamespace(lower_first=3, upper_first=3, neither=4),
+        test_class_counts=SimpleNamespace(lower_first=3, upper_first=3, neither=4),
+        metrics=metrics,
+        plain_calibration_brier_delta=-0.01,
+        elastic_calibration_brier_delta=0.01,
+        best_brier_model="elastic_net_raw",
     )
     artifact_directory = tmp_path / "models" / "60m" / "v1"
     result = cast(
         Any,
         SimpleNamespace(
             report=report,
-            plan=SimpleNamespace(folds=(fold,)),
+            plan=SimpleNamespace(folds=(planned_fold,)),
+            evaluation=SimpleNamespace(folds=(evaluated_fold,)),
             artifact=SimpleNamespace(artifact_directory=artifact_directory),
         ),
     )
@@ -170,4 +212,5 @@ def test_execution_reuses_features_and_price_scales_volatility(
     pd.testing.assert_series_equal(cast(pd.Series, captured["volatility"]), expected)
     assert summary.fold_count == 1
     assert summary.selected_barriers == ((1.0, 1.25),)
+    assert summary.fold_diagnostics[0].elastic_calibration_brier_delta == 0.01
     assert summary_path.exists()
