@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from ung_forecast.training.empirical import BenchmarkMetrics
 from ung_forecast.training.sixty_minute_evaluation import (
+    ClassCounts,
     SixtyMinuteEvaluationResult,
     SixtyMinuteFoldEvaluation,
 )
@@ -30,10 +31,30 @@ def _benchmarks(elastic_brier: float, plain_brier: float = 0.25) -> BenchmarkMet
     )
 
 
+def _fold(number: int, lower: float, upper: float, benchmarks: BenchmarkMetrics) -> SixtyMinuteFoldEvaluation:
+    counts = ClassCounts(lower_first=100, upper_first=100, neither=100)
+    return SixtyMinuteFoldEvaluation(
+        fold_number=number,
+        selected_lower_multiplier=lower,
+        selected_upper_multiplier=upper,
+        metrics=benchmarks,
+        training_class_counts=counts,
+        validation_class_counts=counts,
+        test_class_counts=counts,
+        plain_calibration_brier_delta=(
+            benchmarks.plain_logistic.brier_score - benchmarks.plain_logistic_raw.brier_score
+        ),
+        elastic_calibration_brier_delta=(
+            benchmarks.elastic_net.brier_score - benchmarks.elastic_net_raw.brier_score
+        ),
+        best_brier_model=benchmarks.best_brier_name(),
+    )
+
+
 def test_approves_only_when_elastic_net_wins_every_gate() -> None:
     benchmarks = _benchmarks(0.20)
     evaluation = SixtyMinuteEvaluationResult(
-        folds=(SixtyMinuteFoldEvaluation(1, 1.0, 1.0, benchmarks),),
+        folds=(_fold(1, 1.0, 1.0, benchmarks),),
         aggregate=benchmarks,
     )
     report = build_sixty_minute_research_report(
@@ -48,7 +69,7 @@ def test_approves_only_when_elastic_net_wins_every_gate() -> None:
 def test_rejects_when_plain_logistic_has_better_brier() -> None:
     benchmarks = _benchmarks(0.30, plain_brier=0.20)
     evaluation = SixtyMinuteEvaluationResult(
-        folds=(SixtyMinuteFoldEvaluation(1, 1.0, 1.0, benchmarks),),
+        folds=(_fold(1, 1.0, 1.0, benchmarks),),
         aggregate=benchmarks,
     )
     report = build_sixty_minute_research_report(evaluation)
@@ -61,8 +82,8 @@ def test_rejects_when_any_fold_fails() -> None:
     losing = _benchmarks(0.31, plain_brier=0.21)
     evaluation = SixtyMinuteEvaluationResult(
         folds=(
-            SixtyMinuteFoldEvaluation(1, 1.0, 1.0, winning),
-            SixtyMinuteFoldEvaluation(2, 1.2, 1.2, losing),
+            _fold(1, 1.0, 1.0, winning),
+            _fold(2, 1.2, 1.2, losing),
         ),
         aggregate=winning,
     )
