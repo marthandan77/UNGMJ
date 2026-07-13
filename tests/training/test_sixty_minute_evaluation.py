@@ -69,9 +69,29 @@ def test_evaluates_all_raw_calibrated_and_baseline_models() -> None:
     assert np.isfinite(metrics.plain_logistic.brier_score)
 
 
-def test_preserves_selected_barrier_in_fold_report() -> None:
+def test_preserves_selected_barrier_and_fold_diagnostics() -> None:
     result = evaluate_sixty_minute_plan(_plan())
     fold = result.folds[0]
     assert fold.selected_lower_multiplier == 1.0
     assert fold.selected_upper_multiplier == 1.0
     assert fold.metrics.elastic_net.sample_count == 24
+    assert fold.training_class_counts.total == 60
+    assert fold.validation_class_counts.total == 24
+    assert fold.test_class_counts.total == 24
+    assert fold.training_class_counts.lower_first == 20
+    assert fold.training_class_counts.upper_first == 20
+    assert fold.training_class_counts.neither == 20
+    assert fold.best_brier_model in {
+        "unconditional",
+        "recency_weighted",
+        "plain_logistic_raw",
+        "plain_logistic",
+        "elastic_net_raw",
+        "elastic_net",
+    }
+    assert fold.plain_calibration_brier_delta == (
+        fold.metrics.plain_logistic.brier_score - fold.metrics.plain_logistic_raw.brier_score
+    )
+    assert fold.elastic_calibration_brier_delta == (
+        fold.metrics.elastic_net.brier_score - fold.metrics.elastic_net_raw.brier_score
+    )
