@@ -74,6 +74,7 @@ class SixtyMinuteArtifactResult:
     selected_lower_multiplier: float
     selected_upper_multiplier: float
     probability_mode: ProbabilityMode
+    elastic_net_config: ElasticNetConfig
 
 
 def _sha256(path: Path) -> str:
@@ -105,6 +106,7 @@ def _manifest(
     model_file: ArtifactFile,
     calibrator_file: ArtifactFile,
     probability_mode: ProbabilityMode,
+    elastic_net_config: ElasticNetConfig,
 ) -> HorizonArtifactManifest:
     metrics = report.aggregate_metrics
     reasons = report.approval_reasons
@@ -122,6 +124,8 @@ def _manifest(
         statistical_approved=report.statistically_approved,
         approval_reasons=reasons,
         probability_mode=probability_mode,
+        elastic_net_c=elastic_net_config.c,
+        elastic_net_l1_ratio=elastic_net_config.l1_ratio,
         metrics=StatisticalMetricsSnapshot(
             brier_score=metrics.elastic_net.brier_score,
             log_loss=metrics.elastic_net.log_loss,
@@ -178,7 +182,8 @@ def fit_and_write_sixty_minute_artifact(
     if set(calibration_target.astype(str).unique()) != expected_classes:
         raise ValueError("Final calibration block does not contain all classes")
 
-    model = ElasticNetMultinomialModel(config.elastic_net)
+    elastic_net_config = config.elastic_net or ElasticNetConfig()
+    model = ElasticNetMultinomialModel(elastic_net_config)
     model.fit(dataset.features.loc[training_index], training_target)
     calibration_raw = _probability_frame(
         model.predict_probabilities(dataset.features.loc[calibration_index]),
@@ -219,6 +224,7 @@ def fit_and_write_sixty_minute_artifact(
         model_file=model_file,
         calibrator_file=calibrator_file,
         probability_mode=selection.mode,
+        elastic_net_config=elastic_net_config,
     )
     manifest_path = artifact_directory / "manifest.json"
     temporary_manifest = artifact_directory / "manifest.json.tmp"
@@ -254,4 +260,5 @@ def fit_and_write_sixty_minute_artifact(
         selected_lower_multiplier=lower_multiplier,
         selected_upper_multiplier=upper_multiplier,
         probability_mode=selection.mode,
+        elastic_net_config=elastic_net_config,
     )
