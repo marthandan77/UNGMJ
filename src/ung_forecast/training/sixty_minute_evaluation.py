@@ -3,14 +3,17 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
 
 import pandas as pd
 
-from ung_forecast.models.calibration import CalibrationConfig, MulticlassProbabilityCalibrator
 from ung_forecast.models.elastic_net import ElasticNetConfig, ElasticNetMultinomialModel
 from ung_forecast.models.plain_logistic import PlainLogisticConfig, PlainMultinomialLogisticModel
 from ung_forecast.schemas import ProbabilityForecast
+from ung_forecast.training.calibration_selection import (
+    CalibrationSelectionConfig,
+    ProbabilityMode,
+    select_calibration_mode,
+)
 from ung_forecast.training.empirical import BenchmarkMetrics
 from ung_forecast.training.runner_60m import SixtyMinuteRunPlan
 from ung_forecast.validation.approval import ValidationMetrics
@@ -27,8 +30,6 @@ from ung_forecast.validation.metrics import (
     multiclass_log_loss,
 )
 
-ProbabilityMode = Literal["raw", "calibrated"]
-
 
 @dataclass(frozen=True, slots=True)
 class SixtyMinuteEvaluationConfig:
@@ -41,14 +42,22 @@ class SixtyMinuteEvaluationConfig:
     plain_logistic: PlainLogisticConfig | None = None
 
     def __post_init__(self) -> None:
-        if not 0.0 < self.calibration_fit_fraction < 1.0:
-            raise ValueError("calibration_fit_fraction must be strictly between zero and one")
-        if self.minimum_calibration_fit_rows <= 0:
-            raise ValueError("minimum_calibration_fit_rows must be positive")
-        if self.minimum_calibration_selection_rows <= 0:
-            raise ValueError("minimum_calibration_selection_rows must be positive")
+        CalibrationSelectionConfig(
+            method=self.calibration_method,
+            fit_fraction=self.calibration_fit_fraction,
+            minimum_fit_rows=self.minimum_calibration_fit_rows,
+            minimum_selection_rows=self.minimum_calibration_selection_rows,
+        )
         if self.recency_half_life <= 0:
             raise ValueError("recency_half_life must be positive")
+
+    def calibration_selection_config(self) -> CalibrationSelectionConfig:
+        return CalibrationSelectionConfig(
+            method=self.calibration_method,
+            fit_fraction=self.calibration_fit_fraction,
+            minimum_fit_rows=self.minimum_calibration_fit_rows,
+            minimum_selection_rows=self.minimum_calibration_selection_rows,
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -60,17 +69,6 @@ class ClassCounts:
     @property
     def total(self) -> int:
         return self.lower_first + self.upper_first + self.neither
-
-
-@dataclass(frozen=True, slots=True)
-class CalibrationSelection:
-    selected_probabilities: pd.DataFrame
-    calibrated_probabilities: pd.DataFrame
-    selected_mode: ProbabilityMode
-    fit_rows: int
-    selection_rows: int
-    selection_raw_brier: float
-    selection_calibrated_brier: float
 
 
 @dataclass(frozen=True, slots=True)
@@ -137,62 +135,6 @@ def _class_counts(target: pd.Series) -> ClassCounts:
     )
 
 
-def _split_validation_index(
-    index: pd.Index,
-    *,
-    fit_fraction: float,
-    minimum_fit_rows: int,
-    minimum_selection_rows: int,
-) -> tuple[pd.Index, pd.Index]:
-    if len(index) < minimum_fit_rows + minimum_selection_rows:
-        raise ValueError("Validation interval is too short for calibration fit and selection")
-    proposed_fit_rows = int(len(index) * fit_fraction)
-    fit_rows = max(minimum_fit_rows, proposed_fit_rows)
-    fit_rows = min(fit_rows, len(index) - minimum_selection_rows)
-    fit_index = index[:fit_rows]
-    selection_index = index[fit_rows:]
-    if len(fit_index) < minimum_fit_rows or len(selection_index) < minimum_selection_rows:
-        raise ValueError("Calibration split failed minimum row requirements")
-    return fit_index, selection_index
-
-
-def _select_calibration_mode(
-    validation_raw: pd.DataFrame,
-    validation_target: pd.Series,
-    test_raw: pd.DataFrame,
-    *,
-    method: str,
-    fit_fraction: float,
-    minimum_fit_rows: int,
-    minimum_selection_rows: int,
-) -> CalibrationSelection:
-    fit_index, selection_index = _split_validation_index(
-        validation_raw.index,
-        fit_fraction=fit_fraction,
-        minimum_fit_rows=minimum_fit_rows,
-        minimum_selection_rows=minimum_selection_rows,
-    )
-    calibrator = MulticlassProbabilityCalibrator(CalibrationConfig(method=method))
-    calibrator.fit(validation_raw.loc[fit_index], validation_target.loc[fit_index])
-    selection_calibrated = calibrator.transform(validation_raw.loc[selection_index])
-    selection_raw = validation_raw.loc[selection_index]
-    selection_target = validation_target.loc[selection_index]
-    raw_brier = multiclass_brier_score(selection_target, selection_raw)
-    calibrated_brier = multiclass_brier_score(selection_target, selection_calibrated)
-    calibrated_test = calibrator.transform(test_raw)
-    selected_mode: ProbabilityMode = "calibrated" if calibrated_brier < raw_brier else "raw"
-    selected_test = calibrated_test if selected_mode == "calibrated" else test_raw
-    return CalibrationSelection(
-        selected_probabilities=selected_test,
-        calibrated_probabilities=calibrated_test,
-        selected_mode=selected_mode,
-        fit_rows=len(fit_index),
-        selection_rows=len(selection_index),
-        selection_raw_brier=raw_brier,
-        selection_calibrated_brier=calibrated_brier,
-    )
-
-
 def evaluate_sixty_minute_plan(
     plan: SixtyMinuteRunPlan,
     *,
@@ -201,6 +143,7 @@ def evaluate_sixty_minute_plan(
     """Train each fold and select calibration without inspecting test outcomes."""
 
     effective = config or SixtyMinuteEvaluationConfig()
+    selection_config = effective.calibration_selection_config()
     fold_results: list[SixtyMinuteFoldEvaluation] = []
     aggregate_targets: list[pd.Series] = []
     aggregate_probabilities: dict[str, list[pd.DataFrame]] = {
@@ -227,14 +170,14 @@ def evaluate_sixty_minute_plan(
             elastic.predict_probabilities(validation_x), validation_x.index
         )
         elastic_test_raw = _probability_frame(elastic.predict_probabilities(test_x), test_x.index)
-        elastic_selection = _select_calibration_mode(
+        elastic_mode = select_calibration_mode(
             elastic_validation_raw,
             validation_y,
-            elastic_test_raw,
-            method=effective.calibration_method,
-            fit_fraction=effective.calibration_fit_fraction,
-            minimum_fit_rows=effective.minimum_calibration_fit_rows,
-            minimum_selection_rows=effective.minimum_calibration_selection_rows,
+            config=selection_config,
+        )
+        elastic_calibrated_test = elastic_mode.calibrator.transform(elastic_test_raw)
+        elastic_selected_test = (
+            elastic_calibrated_test if elastic_mode.mode == "calibrated" else elastic_test_raw
         )
 
         plain = PlainMultinomialLogisticModel(effective.plain_logistic)
@@ -243,15 +186,20 @@ def evaluate_sixty_minute_plan(
             plain.predict_probabilities(validation_x), validation_x.index
         )
         plain_test_raw = _probability_frame(plain.predict_probabilities(test_x), test_x.index)
-        plain_selection = _select_calibration_mode(
+        plain_mode = select_calibration_mode(
             plain_validation_raw,
             validation_y,
-            plain_test_raw,
-            method=effective.calibration_method,
-            fit_fraction=effective.calibration_fit_fraction,
-            minimum_fit_rows=effective.minimum_calibration_fit_rows,
-            minimum_selection_rows=effective.minimum_calibration_selection_rows,
+            config=selection_config,
         )
+        plain_calibrated_test = plain_mode.calibrator.transform(plain_test_raw)
+        plain_selected_test = (
+            plain_calibrated_test if plain_mode.mode == "calibrated" else plain_test_raw
+        )
+
+        if not plain_mode.fit_index.equals(elastic_mode.fit_index):
+            raise ValueError("Model calibration fit partitions are inconsistent")
+        if not plain_mode.selection_index.equals(elastic_mode.selection_index):
+            raise ValueError("Model calibration selection partitions are inconsistent")
 
         unconditional_vector = class_frequency_baseline(train_y).iloc[0]
         unconditional = constant_probability_frame(unconditional_vector, test_x.index)
@@ -265,20 +213,12 @@ def evaluate_sixty_minute_plan(
             unconditional=_metrics(test_y, unconditional),
             recency_weighted=_metrics(test_y, recency),
             plain_logistic_raw=_metrics(test_y, plain_test_raw),
-            plain_logistic=_metrics(test_y, plain_selection.selected_probabilities),
+            plain_logistic=_metrics(test_y, plain_selected_test),
             elastic_net_raw=_metrics(test_y, elastic_test_raw),
-            elastic_net=_metrics(test_y, elastic_selection.selected_probabilities),
+            elastic_net=_metrics(test_y, elastic_selected_test),
         )
-        plain_calibrated_test_brier = multiclass_brier_score(
-            test_y, plain_selection.calibrated_probabilities
-        )
-        elastic_calibrated_test_brier = multiclass_brier_score(
-            test_y, elastic_selection.calibrated_probabilities
-        )
-        if plain_selection.fit_rows != elastic_selection.fit_rows:
-            raise ValueError("Model calibration fit partitions are inconsistent")
-        if plain_selection.selection_rows != elastic_selection.selection_rows:
-            raise ValueError("Model calibration selection partitions are inconsistent")
+        plain_calibrated_test_brier = multiclass_brier_score(test_y, plain_calibrated_test)
+        elastic_calibrated_test_brier = multiclass_brier_score(test_y, elastic_calibrated_test)
         fold_results.append(
             SixtyMinuteFoldEvaluation(
                 fold_number=fold.fold_number,
@@ -288,14 +228,14 @@ def evaluate_sixty_minute_plan(
                 training_class_counts=_class_counts(train_y),
                 validation_class_counts=_class_counts(validation_y),
                 test_class_counts=_class_counts(test_y),
-                plain_probability_mode=plain_selection.selected_mode,
-                elastic_probability_mode=elastic_selection.selected_mode,
-                calibration_fit_rows=elastic_selection.fit_rows,
-                calibration_selection_rows=elastic_selection.selection_rows,
-                plain_selection_raw_brier=plain_selection.selection_raw_brier,
-                plain_selection_calibrated_brier=plain_selection.selection_calibrated_brier,
-                elastic_selection_raw_brier=elastic_selection.selection_raw_brier,
-                elastic_selection_calibrated_brier=elastic_selection.selection_calibrated_brier,
+                plain_probability_mode=plain_mode.mode,
+                elastic_probability_mode=elastic_mode.mode,
+                calibration_fit_rows=len(elastic_mode.fit_index),
+                calibration_selection_rows=len(elastic_mode.selection_index),
+                plain_selection_raw_brier=plain_mode.raw_brier,
+                plain_selection_calibrated_brier=plain_mode.calibrated_brier,
+                elastic_selection_raw_brier=elastic_mode.raw_brier,
+                elastic_selection_calibrated_brier=elastic_mode.calibrated_brier,
                 plain_calibrated_test_brier=plain_calibrated_test_brier,
                 elastic_calibrated_test_brier=elastic_calibrated_test_brier,
                 plain_calibration_brier_delta=(
@@ -311,9 +251,9 @@ def evaluate_sixty_minute_plan(
         aggregate_probabilities["unconditional"].append(unconditional)
         aggregate_probabilities["recency_weighted"].append(recency)
         aggregate_probabilities["plain_logistic_raw"].append(plain_test_raw)
-        aggregate_probabilities["plain_logistic"].append(plain_selection.selected_probabilities)
+        aggregate_probabilities["plain_logistic"].append(plain_selected_test)
         aggregate_probabilities["elastic_net_raw"].append(elastic_test_raw)
-        aggregate_probabilities["elastic_net"].append(elastic_selection.selected_probabilities)
+        aggregate_probabilities["elastic_net"].append(elastic_selected_test)
 
     if not fold_results:
         raise ValueError("No 60-minute folds were available for evaluation")
