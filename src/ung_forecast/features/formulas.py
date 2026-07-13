@@ -36,6 +36,25 @@ def realized_volatility(close: pd.Series, window: int) -> pd.Series:
     )
 
 
+def price_scaled_volatility(close: pd.Series, relative_volatility: pd.Series) -> pd.Series:
+    """Convert dimensionless return volatility into a price-distance scale.
+
+    The output is suitable for barrier construction because its unit matches the
+    unit of ``close``: ``sigma_price[t] = close[t] * sigma_return[t]``.
+    """
+
+    if not close.index.equals(relative_volatility.index):
+        raise ValueError("close and relative_volatility must align exactly")
+    if (close <= 0).any():
+        raise ValueError("close prices must be positive")
+    finite_relative = relative_volatility.dropna()
+    if (finite_relative < 0).any():
+        raise ValueError("relative_volatility cannot be negative")
+    return (close.astype(float) * relative_volatility.astype(float)).rename(
+        "price_scaled_volatility"
+    )
+
+
 def session_vwap(frame: pd.DataFrame) -> pd.Series:
     required = {"High", "Low", "Close", "Volume"}
     missing = required.difference(frame.columns)
@@ -118,41 +137,33 @@ def rolling_residual_zscore(
 ) -> pd.Series:
     """Estimate an out-of-sample rolling residual and standardize it.
 
-    At timestamp t, the regression is fitted only on observations strictly
-    before t. The current comparison return is then used to predict the current
-    primary return.
+    For output row ``t``, the regression is fitted through ``t-1`` and then used
+    to predict row ``t``. The residual z-score is right-aligned and therefore
+    contains no future information.
     """
 
     if regression_window <= 1 or zscore_window <= 1:
-        raise ValueError("rolling windows must exceed one")
+        raise ValueError("regression and z-score windows must exceed one")
     if ridge_alpha < 0:
         raise ValueError("ridge_alpha cannot be negative")
+    if not primary_returns.index.equals(comparison_returns.index):
+        raise ValueError("Primary and comparison returns must align exactly")
 
-    aligned = pd.concat(
-        [primary_returns.rename("primary"), comparison_returns.rename("comparison")],
-        axis=1,
-        join="inner",
-    )
-    residual = pd.Series(index=aligned.index, dtype=float, name="ung_ng_residual")
-
-    for position in range(regression_window, len(aligned)):
-        history = aligned.iloc[position - regression_window : position].dropna()
-        current = aligned.iloc[position]
-        if len(history) < regression_window or current.isna().any():
+    residual = pd.Series(index=primary_returns.index, dtype=float, name="rolling_residual")
+    for position in range(regression_window, len(primary_returns)):
+        train_slice = slice(position - regression_window, position)
+        train_y = primary_returns.iloc[train_slice]
+        train_x = comparison_returns.iloc[train_slice]
+        current_x = comparison_returns.iloc[position]
+        if train_y.isna().any() or train_x.isna().any() or pd.isna(current_x):
             continue
         model = Ridge(alpha=ridge_alpha)
-        model.fit(history[["comparison"]].to_numpy(), history["primary"].to_numpy())
-        prediction = float(model.predict(np.array([[current["comparison"]]]))[0])
-        residual.iloc[position] = float(current["primary"] - prediction)
+        model.fit(train_x.to_numpy(dtype=float).reshape(-1, 1), train_y.to_numpy(dtype=float))
+        prediction = float(model.predict(np.array([[float(current_x)]]))[0])
+        residual.iloc[position] = float(primary_returns.iloc[position]) - prediction
 
-    rolling_mean = residual.shift(1).rolling(
-        window=zscore_window,
-        min_periods=zscore_window,
-    ).mean()
-    rolling_std = residual.shift(1).rolling(
-        window=zscore_window,
-        min_periods=zscore_window,
-    ).std(ddof=0)
+    rolling_mean = residual.rolling(zscore_window, min_periods=zscore_window).mean()
+    rolling_std = residual.rolling(zscore_window, min_periods=zscore_window).std(ddof=0)
     return ((residual - rolling_mean) / rolling_std.replace(0, np.nan)).rename(
-        "ung_ng_residual_z"
+        "rolling_residual_zscore"
     )
