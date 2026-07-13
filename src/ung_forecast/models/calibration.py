@@ -30,7 +30,7 @@ class MulticlassProbabilityCalibrator:
 
     @staticmethod
     def _validate_probabilities(raw_probabilities: pd.DataFrame) -> None:
-        if tuple(raw_probabilities.columns) != CLASS_ORDER:
+        if tuple(raw_probabilities.columns) != tuple(CLASS_ORDER):
             raise ValueError("Calibration probabilities must use the canonical class order")
         if raw_probabilities.empty:
             raise ValueError("Calibration probabilities cannot be empty")
