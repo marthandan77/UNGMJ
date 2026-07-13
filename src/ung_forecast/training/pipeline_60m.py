@@ -6,10 +6,9 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import pandas as pd
-
 from ung_forecast.training.runner_60m import (
-    SixtyMinuteRunPlan,
     SixtyMinuteRunnerConfig,
+    SixtyMinuteRunPlan,
     build_sixty_minute_run_plan,
 )
 from ung_forecast.training.sixty_minute_artifact import (
