@@ -94,6 +94,8 @@ class YFinanceProvider:
     ) -> MarketDataBundle:
         if as_of.tzinfo is None:
             raise ValueError("as_of must be timezone-aware")
+        if not isinstance(frame.index, pd.DatetimeIndex):
+            raise ValueError("Market data must use a DatetimeIndex")
         index = frame.index
         source_timezone = str(index.tz) if index.tz is not None else "naive"
         normalized = frame.copy()
