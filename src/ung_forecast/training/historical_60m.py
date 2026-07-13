@@ -14,6 +14,7 @@ from ung_forecast.configuration import load_config
 from ung_forecast.data.provider import YFinanceProvider
 from ung_forecast.data.validator import REQUIRED_COLUMNS, validate_ohlcv
 from ung_forecast.features.engine import build_feature_frame
+from ung_forecast.features.formulas import price_scaled_volatility
 from ung_forecast.horizons import HorizonKey
 from ung_forecast.training.barrier_selection import BarrierCandidate, BarrierSelectionConfig
 from ung_forecast.training.pipeline_60m import (
@@ -187,7 +188,10 @@ def execute_historical_sixty_minute_run(
     market_data = load_historical_ung_data(config)
     feature_result = build_feature_frame(market_data, horizon=HorizonKey.MINUTES_60)
     feature_result.assert_no_future_sources()
-    volatility = feature_result.frame["realized_volatility"].copy()
+    volatility = price_scaled_volatility(
+        market_data["Close"],
+        feature_result.frame["realized_volatility"],
+    )
     result = run_sixty_minute_research_pipeline(
         market_data,
         feature_result.frame,
