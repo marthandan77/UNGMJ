@@ -17,8 +17,8 @@ class CalibrationConfig:
     method: str = "platt"
 
     def __post_init__(self) -> None:
-        if self.method not in {"platt", "isotonic"}:
-            raise ValueError("method must be 'platt' or 'isotonic'")
+        if self.method not in {"platt", "isotonic", "identity"}:
+            raise ValueError("method must be 'platt', 'isotonic', or 'identity'")
 
 
 class MulticlassProbabilityCalibrator:
@@ -28,9 +28,26 @@ class MulticlassProbabilityCalibrator:
         self._isotonic_models: dict[str, IsotonicRegression] = {}
         self._fitted = False
 
+    @staticmethod
+    def _validate_probabilities(raw_probabilities: pd.DataFrame) -> None:
+        if tuple(raw_probabilities.columns) != CLASS_ORDER:
+            raise ValueError("Calibration probabilities must use the canonical class order")
+        if raw_probabilities.empty:
+            raise ValueError("Calibration probabilities cannot be empty")
+        if raw_probabilities.isna().any().any():
+            raise ValueError("Calibration probabilities contain missing values")
+        if (raw_probabilities < 0.0).any().any():
+            raise ValueError("Calibration probabilities cannot be negative")
+        if (raw_probabilities.sum(axis=1) <= 0.0).any():
+            raise ValueError("Calibration probability rows must have positive mass")
+
     def fit(self, raw_probabilities: pd.DataFrame, target: pd.Series) -> None:
         if not raw_probabilities.index.equals(target.index):
             raise ValueError("Calibration probabilities and target must align")
+        self._validate_probabilities(raw_probabilities)
+        if self.config.method == "identity":
+            self._fitted = True
+            return
         for class_name in CLASS_ORDER:
             binary_target = target.astype(str).eq(class_name).astype(int)
             scores = raw_probabilities[class_name].astype(float).to_numpy()
@@ -49,6 +66,10 @@ class MulticlassProbabilityCalibrator:
     def transform(self, raw_probabilities: pd.DataFrame) -> pd.DataFrame:
         if not self._fitted:
             raise RuntimeError("Calibrator has not been fitted")
+        self._validate_probabilities(raw_probabilities)
+        if self.config.method == "identity":
+            row_sum = raw_probabilities.sum(axis=1)
+            return raw_probabilities.astype(float).div(row_sum, axis=0)
         calibrated = pd.DataFrame(index=raw_probabilities.index)
         for class_name in CLASS_ORDER:
             scores = raw_probabilities[class_name].astype(float).to_numpy()
