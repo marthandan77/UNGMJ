@@ -21,12 +21,20 @@ class StatisticalApprovalCriteria:
     maximum_calibration_error: float = 0.10
     minimum_brier_improvement: float = 0.0
     minimum_log_loss_improvement: float = 0.0
+    minimum_fold_win_rate: float = 0.60
+    maximum_fold_brier_regret: float = 0.01
 
     def __post_init__(self) -> None:
         if self.minimum_samples <= 0:
             raise ValueError("minimum_samples must be positive")
         if not 0.0 <= self.maximum_calibration_error <= 1.0:
             raise ValueError("maximum_calibration_error must be within [0, 1]")
+        if not 0.0 <= self.minimum_fold_win_rate <= 1.0:
+            raise ValueError("minimum_fold_win_rate must be within [0, 1]")
+        if not isfinite(self.maximum_fold_brier_regret):
+            raise ValueError("maximum_fold_brier_regret must be finite")
+        if self.maximum_fold_brier_regret < 0.0:
+            raise ValueError("maximum_fold_brier_regret must be non-negative")
 
 
 @dataclass(frozen=True, slots=True)

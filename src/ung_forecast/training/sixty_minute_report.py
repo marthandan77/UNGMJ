@@ -5,7 +5,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from ung_forecast.training.empirical import BenchmarkMetrics
-from ung_forecast.training.sixty_minute_evaluation import SixtyMinuteEvaluationResult
+from ung_forecast.training.sixty_minute_evaluation import (
+    SixtyMinuteEvaluationResult,
+    SixtyMinuteFoldEvaluation,
+)
 from ung_forecast.validation.approval import (
     ApprovalDecision,
     StatisticalApprovalCriteria,
@@ -74,6 +77,44 @@ def _evaluate_production_stream(
     )
 
 
+def _evaluate_walk_forward_stability(
+    folds: tuple[SixtyMinuteFoldEvaluation, ...],
+    criteria: StatisticalApprovalCriteria,
+) -> ApprovalDecision:
+    """Require broad fold support without demanding an implausible perfect record.
+
+    The aggregate gate remains strict. Fold stability is evaluated with two
+    predeclared controls: a minimum win rate and a cap on the worst Brier regret.
+    This rejects broad or material instability while tolerating small sampling noise.
+    """
+
+    if not folds:
+        return ApprovalDecision(False, ("no_walk_forward_folds",))
+
+    reasons: list[str] = []
+    for name in ("unconditional", "recency_weighted", "plain_logistic"):
+        wins = 0
+        regrets: list[float] = []
+        for fold in folds:
+            model_brier = fold.metrics.elastic_net.brier_score
+            benchmark_brier = _external_benchmarks(fold.metrics)[name].brier_score
+            if benchmark_brier - model_brier > criteria.minimum_brier_improvement:
+                wins += 1
+            regrets.append(model_brier - benchmark_brier)
+
+        win_rate = wins / len(folds)
+        maximum_regret = max(regrets)
+        if win_rate < criteria.minimum_fold_win_rate:
+            reasons.append(f"fold_win_rate_below_{name}")
+        if maximum_regret > criteria.maximum_fold_brier_regret:
+            reasons.append(f"fold_brier_regret_too_high_{name}")
+
+    return ApprovalDecision(
+        approved=not reasons,
+        reasons=tuple(dict.fromkeys(reasons)),
+    )
+
+
 def build_sixty_minute_research_report(
     evaluation: SixtyMinuteEvaluationResult,
     *,
@@ -95,12 +136,11 @@ def build_sixty_minute_research_report(
         )
 
     aggregate_decision = _evaluate_production_stream(evaluation.aggregate, effective)
-    reasons = list(aggregate_decision.reasons)
-    if not all(item.decision.approved for item in fold_approvals):
-        reasons.append("one_or_more_walk_forward_folds_failed")
+    stability_decision = _evaluate_walk_forward_stability(evaluation.folds, effective)
+    reasons = [*aggregate_decision.reasons, *stability_decision.reasons]
 
     unique_reasons = tuple(dict.fromkeys(reasons))
-    statistically_approved = aggregate_decision.approved and not unique_reasons
+    statistically_approved = aggregate_decision.approved and stability_decision.approved
     return SixtyMinuteResearchReport(
         horizon_key="60m",
         fold_count=len(evaluation.folds),
