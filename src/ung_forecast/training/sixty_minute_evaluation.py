@@ -20,6 +20,12 @@ from ung_forecast.training.elastic_net_selection import (
     select_elastic_net_config,
 )
 from ung_forecast.training.empirical import BenchmarkMetrics
+from ung_forecast.training.fold_diagnostics import (
+    CoefficientDiagnostics,
+    FeatureDriftDiagnostics,
+    coefficient_diagnostics,
+    feature_drift_diagnostics,
+)
 from ung_forecast.training.runner_60m import SixtyMinuteRunPlan
 from ung_forecast.validation.approval import ValidationMetrics
 from ung_forecast.validation.baselines import (
@@ -103,6 +109,9 @@ class SixtyMinuteFoldEvaluation:
     best_brier_model: str
     elastic_net_config: ElasticNetConfig
     elastic_net_selection: ElasticNetSelectionResult | None
+    feature_drift: FeatureDriftDiagnostics
+    elastic_coefficients: CoefficientDiagnostics
+    plain_coefficients: CoefficientDiagnostics
 
 
 @dataclass(frozen=True, slots=True)
@@ -240,6 +249,7 @@ def evaluate_sixty_minute_plan(
             raise ValueError("Model calibration fit partitions are inconsistent")
         if len(plain_selection.selection_index) != len(elastic_selection.selection_index):
             raise ValueError("Model calibration selection partitions are inconsistent")
+
         fold_results.append(
             SixtyMinuteFoldEvaluation(
                 fold_number=fold.fold_number,
@@ -268,6 +278,9 @@ def evaluate_sixty_minute_plan(
                 best_brier_model=metrics.best_brier_name(),
                 elastic_net_config=elastic_config,
                 elastic_net_selection=elastic_selection_result,
+                feature_drift=feature_drift_diagnostics(train_x, validation_x, test_x),
+                elastic_coefficients=coefficient_diagnostics(elastic.coefficient_frame()),
+                plain_coefficients=coefficient_diagnostics(plain.coefficient_frame()),
             )
         )
         aggregate_targets.append(test_y)
