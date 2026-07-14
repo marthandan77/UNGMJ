@@ -12,6 +12,7 @@ from pydantic import ValidationError
 from ung_forecast.horizons import HORIZON_SPECS, HorizonKey
 
 from .manifest import ArtifactFile, HorizonArtifactManifest
+from .materialize import materialize_artifact_file
 
 
 class ArtifactState(StrEnum):
@@ -43,6 +44,8 @@ def resolve_checked(root: Path, artifact: ArtifactFile) -> Path:
     candidate = (root / artifact.relative_path).resolve()
     if candidate != root_resolved and root_resolved not in candidate.parents:
         raise ValueError("Artifact path escapes its manifest directory")
+    if not candidate.is_file() or _sha256(candidate) != artifact.sha256:
+        materialize_artifact_file(root, artifact)
     if not candidate.is_file():
         raise FileNotFoundError(f"Artifact file is missing: {artifact.relative_path}")
     if _sha256(candidate) != artifact.sha256:
