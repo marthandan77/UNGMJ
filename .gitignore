@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+
+# Streamlit secrets
+.streamlit/secrets.toml
+
+# Runtime data and logs
+data/cache/
+data/forecast_history.jsonl
+reports/*.json
+reports/*.md
+
+# Model deployment path is intentionally version controlled for Streamlit.
+artifacts/*
+!artifacts/models/
+!artifacts/models/**
+
+# Local environment
+.env
+.env.*
+!.env.example

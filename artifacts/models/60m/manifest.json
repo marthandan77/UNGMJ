@@ -1,0 +1,41 @@
+{
+  "schema_version": "1",
+  "horizon": "60m",
+  "created_at": "2026-07-13T23:34:04.930660Z",
+  "model_version": "60m-empirical-v1",
+  "feature_version": "features-v1",
+  "data_version": "yfinance-60d",
+  "configuration_hash": "a3e98558f56040f44a9d2f87298de6b2fd5afd9686a0b4ac93a3c02781de5a5c",
+  "feature_names": [
+    "return_3",
+    "return_6",
+    "realized_volatility",
+    "vwap_z",
+    "variance_ratio",
+    "relative_volume",
+    "time_sin",
+    "time_cos"
+  ],
+  "includes_comparison": false,
+  "probability_mode": "raw",
+  "elastic_net_c": 0.1,
+  "elastic_net_l1_ratio": 1.0,
+  "statistical_approved": true,
+  "approval_reasons": [],
+  "metrics": {
+    "brier_score": 0.546056031331035,
+    "log_loss": 0.8955161173069688,
+    "calibration_error": 0.018072978155845833,
+    "sample_count": 2392,
+    "baseline_brier_score": 0.606998135795806,
+    "baseline_log_loss": 1.0058243297649874
+  },
+  "model_file": {
+    "relative_path": "60m-empirical-v1/model.joblib",
+    "sha256": "e37119fb52324613f664d0e1abdbbfcb94fe2aacfcc263f90230460dd7304c39"
+  },
+  "calibrator_file": {
+    "relative_path": "60m-empirical-v1/calibrator.joblib",
+    "sha256": "3d9eab676dffa45cc366e7736f2bfb75113ec7c79d98f08f3ffdc13157c02d11"
+  }
+}

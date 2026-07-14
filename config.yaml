@@ -1,0 +1,10 @@
+application_name: UNG Forecast Machine
+research_mode: true
+
+data:
+  primary_symbol: UNG
+  comparison_symbol: NG=F
+  timezone: America/New_York
+  provider: runtime
+  adjusted_prices: false
+  cache_directory: data/cache
