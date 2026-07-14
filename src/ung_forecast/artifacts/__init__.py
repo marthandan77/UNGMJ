@@ -7,7 +7,6 @@ from .loader import (
     load_manifest,
 )
 from .manifest import ArtifactFile, HorizonArtifactManifest, StatisticalMetricsSnapshot
-from .materialize import materialize_repository_artifacts
 from .runtime import LoadedHorizonArtifacts, load_validated_artifacts
 
 __all__ = [
@@ -20,5 +19,4 @@ __all__ = [
     "discover_horizon_artifacts",
     "load_manifest",
     "load_validated_artifacts",
-    "materialize_repository_artifacts",
 ]
