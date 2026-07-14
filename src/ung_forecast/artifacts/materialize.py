@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import os
 from pathlib import Path
@@ -22,19 +23,22 @@ def _sha256_file(path: Path) -> str:
 
 
 def materialize_artifact_file(horizon_root: Path, artifact: ArtifactFile) -> Path:
-    """Materialize one embedded payload when its binary file is absent or invalid."""
+    """Materialize one base64 payload when its binary file is absent or invalid."""
 
     target = horizon_root / artifact.relative_path
     if target.is_file() and _sha256_file(target) == artifact.sha256:
         return target
 
-    embedded = target.with_suffix(target.suffix + ".embedded")
+    embedded = target.with_suffix(target.suffix + ".b64")
     if not embedded.is_file():
         raise FileNotFoundError(
             f"Artifact file and embedded payload are both missing: {artifact.relative_path}"
         )
 
-    payload = embedded.read_bytes()
+    try:
+        payload = base64.b64decode(embedded.read_text(encoding="ascii"), validate=True)
+    except (OSError, ValueError) as exc:
+        raise ValueError(f"Embedded artifact payload is invalid: {artifact.relative_path}") from exc
     if _sha256_bytes(payload) != artifact.sha256:
         raise ValueError(f"Embedded artifact checksum mismatch: {artifact.relative_path}")
 
