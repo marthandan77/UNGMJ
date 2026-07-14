@@ -6,7 +6,6 @@ import hashlib
 import os
 from pathlib import Path
 
-from .loader import load_manifest
 from .manifest import ArtifactFile
 
 
@@ -22,7 +21,9 @@ def _sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _materialize_file(horizon_root: Path, artifact: ArtifactFile) -> Path:
+def materialize_artifact_file(horizon_root: Path, artifact: ArtifactFile) -> Path:
+    """Materialize one embedded payload when its binary file is absent or invalid."""
+
     target = horizon_root / artifact.relative_path
     if target.is_file() and _sha256_file(target) == artifact.sha256:
         return target
@@ -42,16 +43,3 @@ def _materialize_file(horizon_root: Path, artifact: ArtifactFile) -> Path:
     temporary.write_bytes(payload)
     os.replace(temporary, target)
     return target
-
-
-def materialize_repository_artifacts(root: str | Path) -> tuple[Path, ...]:
-    """Materialize all manifest-declared embedded payloads under an artifact root."""
-
-    artifact_root = Path(root)
-    materialized: list[Path] = []
-    for manifest_path in sorted(artifact_root.glob("*/manifest.json")):
-        horizon_root = manifest_path.parent
-        manifest = load_manifest(manifest_path)
-        materialized.append(_materialize_file(horizon_root, manifest.model_file))
-        materialized.append(_materialize_file(horizon_root, manifest.calibrator_file))
-    return tuple(materialized)
