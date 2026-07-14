@@ -26,11 +26,14 @@ def materialize_artifact_file(horizon_root: Path, artifact: ArtifactFile) -> Pat
     """Materialize one base64 payload when its binary file is absent or invalid."""
 
     target = horizon_root / artifact.relative_path
-    if target.is_file() and _sha256_file(target) == artifact.sha256:
+    target_exists = target.is_file()
+    if target_exists and _sha256_file(target) == artifact.sha256:
         return target
 
     embedded = target.with_suffix(target.suffix + ".b64")
     if not embedded.is_file():
+        if target_exists:
+            raise ValueError(f"Checksum mismatch: {artifact.relative_path}")
         raise FileNotFoundError(
             f"Artifact file and embedded payload are both missing: {artifact.relative_path}"
         )
