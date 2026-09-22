@@ -26,6 +26,8 @@ function fail(message, error) {
 }
 
 export function connectCTraderHost() {
+  if (connectionTimer) clearTimeout(connectionTimer);
+  connected = false;
   adapter = createClientAdapter({ logger: console });
   connectionTimer = setTimeout(() => {
     if (!connected) fail("cTrader host unavailable: open this URL as a registered cTrader WebView plugin, not as a standalone browser page");
@@ -45,6 +47,11 @@ export function connectCTraderHost() {
       return [];
     }),
   ).subscribe();
+}
+
+export function reconnectCTraderHost() {
+  window.dispatchEvent(new CustomEvent("ung-radar-sdk-reconnecting"));
+  connectCTraderHost();
 }
 
 function subscribeToConfiguredSymbol() {
