@@ -6,6 +6,7 @@ import { createClientAdapter } from "https://esm.sh/@spotware-web-team/sdk-exter
 import { catchError, take, tap } from "https://esm.sh/rxjs";
 import {
   getLightSymbolList,
+  getSymbol,
   getTrendbarList,
   handleConfirmEvent,
   quoteEvent,
@@ -18,6 +19,9 @@ let adapter;
 let connected = false;
 let configuredSymbolId = null;
 let connectionTimer;
+let symbolDetails = {};
+let latestQuote = {};
+let dailyHistoryAvailable = false;
 
 function fail(message, error) {
   window.dispatchEvent(new CustomEvent("ung-radar-sdk-error", { detail: { message, error: String(error || "") } }));
@@ -56,17 +60,19 @@ function subscribeToConfiguredSymbol() {
         return;
       }
       configuredSymbolId = match.symbolId;
-      window.dispatchEvent(new CustomEvent("ung-radar-symbol-metadata", { detail: {
-        symbol: String(match.symbolName || match.name || configuredSymbol),
-        symbol_id: match.symbolId,
-        bid: Number(match.bid ?? match.bidPrice),
-        ask: Number(match.ask ?? match.askPrice),
-        digits: Number(match.digits),
-        tick_size: Number(match.tickSize ?? match.tick_size),
-        trading_enabled: match.tradingEnabled ?? match.trading_enabled,
-        has_daily_history: match.hasDailyHistory ?? match.has_daily_history,
-        metadata_received_at_utc: new Date().toISOString(),
-      }}));
+      symbolDetails = match;
+      getSymbol(adapter, { symbolId: [configuredSymbolId] }).pipe(
+        take(1),
+        tap(detailResponse => {
+          const details = detailResponse.symbol || detailResponse.symbols || [];
+          symbolDetails = { ...match, ...(details[0] || {}) };
+          emitMetadata();
+        }),
+        catchError(error => {
+          fail("Detailed symbol metadata request failed", error);
+          return [];
+        }),
+      ).subscribe();
       requestDailyBars();
       subscribeQuotes(adapter, { symbolId: [match.symbolId], subscribeToSpotTimestamp: true }).pipe(take(1)).subscribe({
         error: error => fail("Quote subscription failed", error),
@@ -82,6 +88,8 @@ function subscribeToConfiguredSymbol() {
     tap(quote => {
       const quoteSymbolId = quote.symbolId ?? quote.symbol_id;
       if (configuredSymbolId != null && quoteSymbolId != null && Number(quoteSymbolId) !== Number(configuredSymbolId)) return;
+      latestQuote = quote;
+      emitMetadata();
       window.dispatchEvent(new CustomEvent("ung-radar-quote", { detail: quote }));
     }),
     catchError(error => {
@@ -103,6 +111,8 @@ function requestDailyBars() {
     take(1),
     tap(response => {
       const bars = response.trendbar || response.trendbars || [];
+      dailyHistoryAvailable = bars.length >= 30;
+      emitMetadata();
       window.dispatchEvent(new CustomEvent("ung-radar-daily-bars", { detail: {
         symbol_id: configuredSymbolId,
         bars,
@@ -114,6 +124,24 @@ function requestDailyBars() {
       return [];
     }),
   ).subscribe();
+}
+
+function emitMetadata() {
+  const digits = Number(symbolDetails.digits ?? symbolDetails.precision);
+  const tickSize = Number(symbolDetails.tickSize ?? symbolDetails.tick_size ?? symbolDetails.minChange);
+  const bid = Number(latestQuote.bid ?? latestQuote.bidPrice ?? symbolDetails.bid);
+  const ask = Number(latestQuote.ask ?? latestQuote.askPrice ?? symbolDetails.ask);
+  window.dispatchEvent(new CustomEvent("ung-radar-symbol-metadata", { detail: {
+    symbol: String(symbolDetails.symbolName || symbolDetails.name || configuredSymbol),
+    symbol_id: configuredSymbolId,
+    bid,
+    ask,
+    digits,
+    tick_size: tickSize,
+    trading_enabled: symbolDetails.tradingEnabled ?? symbolDetails.trading_enabled ?? symbolDetails.enabled !== false,
+    has_daily_history: dailyHistoryAvailable,
+    metadata_received_at_utc: new Date().toISOString(),
+  }}));
 }
 
 export function isCTraderConnected() {
