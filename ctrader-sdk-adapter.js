@@ -7,7 +7,6 @@ import { catchError, take, tap } from "https://esm.sh/rxjs";
 import {
   getLightSymbolList,
   getSymbol,
-  getTrendbarList,
   handleConfirmEvent,
   quoteEvent,
   registerEvent,
@@ -21,7 +20,6 @@ let configuredSymbolId = null;
 let connectionTimer;
 let symbolDetails = {};
 let latestQuote = {};
-let dailyHistoryAvailable = false;
 
 function fail(message, error) {
   window.dispatchEvent(new CustomEvent("ung-radar-sdk-error", { detail: { message, error: String(error || "") } }));
@@ -73,7 +71,6 @@ function subscribeToConfiguredSymbol() {
           return [];
         }),
       ).subscribe();
-      requestDailyBars();
       subscribeQuotes(adapter, { symbolId: [match.symbolId], subscribeToSpotTimestamp: true }).pipe(take(1)).subscribe({
         error: error => fail("Quote subscription failed", error),
       });
@@ -99,33 +96,6 @@ function subscribeToConfiguredSymbol() {
   ).subscribe();
 }
 
-function requestDailyBars() {
-  if (configuredSymbolId == null) return;
-  getTrendbarList(adapter, {
-    symbolId: configuredSymbolId,
-    period: "D1",
-    count: 30,
-    toTimestamp: Date.now(),
-    type: "REGULAR",
-  }).pipe(
-    take(1),
-    tap(response => {
-      const bars = response.trendbar || response.trendbars || [];
-      dailyHistoryAvailable = bars.length >= 30;
-      emitMetadata();
-      window.dispatchEvent(new CustomEvent("ung-radar-daily-bars", { detail: {
-        symbol_id: configuredSymbolId,
-        bars,
-        received_at_utc: new Date().toISOString(),
-      }}));
-    }),
-    catchError(error => {
-      fail("Daily trendbar request failed", error);
-      return [];
-    }),
-  ).subscribe();
-}
-
 function emitMetadata() {
   const digits = Number(symbolDetails.digits ?? symbolDetails.precision);
   const tickSize = Number(symbolDetails.tickSize ?? symbolDetails.tick_size ?? symbolDetails.minChange);
@@ -139,7 +109,9 @@ function emitMetadata() {
     digits,
     tick_size: tickSize,
     trading_enabled: symbolDetails.tradingEnabled ?? symbolDetails.trading_enabled ?? symbolDetails.enabled !== false,
-    has_daily_history: dailyHistoryAvailable,
+    // Historical trendbars are not exposed by the documented Web Plugin SDK.
+    // The dashboard must not fabricate daily history from a single quote.
+    has_daily_history: false,
     metadata_received_at_utc: new Date().toISOString(),
   }}));
 }
