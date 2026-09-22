@@ -6,6 +6,7 @@ import { createClientAdapter } from "https://esm.sh/@spotware-web-team/sdk-exter
 import { catchError, take, tap } from "https://esm.sh/rxjs";
 import {
   getLightSymbolList,
+  getTrendbarList,
   handleConfirmEvent,
   quoteEvent,
   registerEvent,
@@ -61,7 +62,8 @@ function subscribeToConfiguredSymbol() {
         has_daily_history: match.hasDailyHistory ?? match.has_daily_history,
         metadata_received_at_utc: new Date().toISOString(),
       }}));
-      subscribeQuotes(adapter, { symbolId: [match.symbolId] }).pipe(take(1)).subscribe({
+      requestDailyBars();
+      subscribeQuotes(adapter, { symbolId: [match.symbolId], subscribeToSpotTimestamp: true }).pipe(take(1)).subscribe({
         error: error => fail("Quote subscription failed", error),
       });
     }),
@@ -79,6 +81,31 @@ function subscribeToConfiguredSymbol() {
     }),
     catchError(error => {
       fail("Quote stream failed", error);
+      return [];
+    }),
+  ).subscribe();
+}
+
+function requestDailyBars() {
+  if (configuredSymbolId == null) return;
+  getTrendbarList(adapter, {
+    symbolId: configuredSymbolId,
+    period: "D1",
+    count: 30,
+    toTimestamp: Date.now(),
+    type: "REGULAR",
+  }).pipe(
+    take(1),
+    tap(response => {
+      const bars = response.trendbar || response.trendbars || [];
+      window.dispatchEvent(new CustomEvent("ung-radar-daily-bars", { detail: {
+        symbol_id: configuredSymbolId,
+        bars,
+        received_at_utc: new Date().toISOString(),
+      }}));
+    }),
+    catchError(error => {
+      fail("Daily trendbar request failed", error);
       return [];
     }),
   ).subscribe();
