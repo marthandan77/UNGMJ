@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>UNG cTrader Bridge Test</title>
+  <style>
+    body{margin:0;padding:20px;background:#111514;color:#f1f4ed;font:15px system-ui,sans-serif}
+    h1{color:#e6ad5b}.ok{color:#8ed1ad}.bad{color:#ec836f}.box{padding:14px;border:1px solid #34423a;border-radius:12px;margin:12px 0;white-space:pre-wrap;word-break:break-word}
+    button{padding:12px 16px;background:#26352d;color:#fff;border:1px solid #8ed1ad;border-radius:8px;font-weight:700}
+  </style>
+</head>
+<body>
+  <h1>UNG cTrader Bridge Test</h1>
+  <div id="state" class="box">Starting SDK handshake...</div>
+  <button id="retry">Retry cTrader connection</button>
+  <div id="log" class="box"></div>
+  <script type="module">
+    import { createClientAdapter } from "https://esm.sh/@spotware-web-team/sdk-external-api";
+    import { handleConfirmEvent, registerEvent, getLightSymbolList, quoteEvent, subscribeQuotes } from "https://esm.sh/@spotware-web-team/sdk";
+    import { take, tap, catchError } from "https://esm.sh/rxjs";
+
+    const state = document.querySelector("#state");
+    const logBox = document.querySelector("#log");
+    const symbolName = new URLSearchParams(location.search).get("symbol") || "UNG.US";
+    let adapter;
+    let timer;
+
+    function log(message, good = false) {
+      const line = document.createElement("div");
+      line.textContent = new Date().toLocaleTimeString() + "  " + message;
+      line.className = good ? "ok" : "";
+      logBox.prepend(line);
+    }
+
+    function fail(message, error) {
+      clearTimeout(timer);
+      state.textContent = "SDK DISCONNECTED\n" + message + (error ? "\n" + String(error) : "");
+      state.className = "box bad";
+      log(message + (error ? ": " + String(error) : ""));
+    }
+
+    function connect() {
+      clearTimeout(timer);
+      state.textContent = "CONNECTING\nWaiting for cTrader host register event...";
+      state.className = "box";
+      log("Creating cTrader client adapter");
+      adapter = createClientAdapter({ logger: console });
+      timer = setTimeout(() => fail("No register event received after 12 seconds. This page is not receiving the cTrader Web Plugin bridge."), 12000);
+
+      handleConfirmEvent(adapter, {}).pipe(take(1)).subscribe();
+      registerEvent(adapter).pipe(
+        take(1),
+        tap(() => {
+          clearTimeout(timer);
+          handleConfirmEvent(adapter, {}).pipe(take(1)).subscribe();
+          state.textContent = "LIVE · cTRADER SDK\nHandshake completed";
+          state.className = "box ok";
+          log("register event received", true);
+          startData();
+        }),
+        catchError(error => { fail("Handshake failed", error); return []; })
+      ).subscribe();
+    }
+
+    function startData() {
+      quoteEvent(adapter).pipe(
+        tap(quote => log("QUOTE " + JSON.stringify(quote), true)),
+        catchError(error => { fail("Quote stream failed", error); return []; })
+      ).subscribe();
+      getLightSymbolList(adapter, {}).pipe(
+        take(1),
+        tap(response => {
+          const symbols = response.symbols || response.symbol || [];
+          const match = symbols.find(item => String(item.symbolName || item.name || "").toUpperCase() === symbolName.toUpperCase());
+          if (!match) { fail("Symbol not found: " + symbolName); return; }
+          log("Symbol found: " + JSON.stringify(match), true);
+          subscribeQuotes(adapter, { symbolId: [match.symbolId] }).pipe(take(1)).subscribe({
+            error: error => fail("Quote subscription failed", error)
+          });
+        }),
+        catchError(error => { fail("Symbol request failed", error); return []; })
+      ).subscribe();
+    }
+
+    document.querySelector("#retry").onclick = connect;
+    connect();
+  </script>
+</body>
+</html>
