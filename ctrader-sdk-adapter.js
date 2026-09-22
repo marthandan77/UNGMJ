@@ -17,6 +17,7 @@ const configuredSymbol = new URLSearchParams(location.search).get("symbol") || "
 let adapter;
 let connected = false;
 let configuredSymbolId = null;
+let connectionTimer;
 
 function fail(message, error) {
   window.dispatchEvent(new CustomEvent("ung-radar-sdk-error", { detail: { message, error: String(error || "") } }));
@@ -24,12 +25,16 @@ function fail(message, error) {
 
 export function connectCTraderHost() {
   adapter = createClientAdapter({ logger: console });
+  connectionTimer = setTimeout(() => {
+    if (!connected) fail("cTrader host unavailable: open this URL as a registered cTrader WebView plugin, not as a standalone browser page");
+  }, 12000);
   handleConfirmEvent(adapter, {}).pipe(take(1)).subscribe();
   registerEvent(adapter).pipe(
     take(1),
     tap(() => {
       handleConfirmEvent(adapter, {}).pipe(take(1)).subscribe();
       connected = true;
+      clearTimeout(connectionTimer);
       window.dispatchEvent(new CustomEvent("ung-radar-sdk-connected"));
       subscribeToConfiguredSymbol();
     }),
