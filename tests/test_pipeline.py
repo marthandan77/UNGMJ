@@ -125,4 +125,5 @@ def test_strategy_and_feature_ablation_evaluation_is_out_of_sample() -> None:
     assert len(results) > 0
     assert {"expanding", "rolling", "recency_weighted"} == set(results["strategy"])
     assert "all" in set(results["feature_group"])
+    assert {item["horizon_sessions"] for item in summaries} == {1}
     assert all(0 <= item["directional_accuracy"] <= 1 for item in summaries)
