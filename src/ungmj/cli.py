@@ -24,9 +24,12 @@ def run_once(output_dir: str = "data/ledger") -> dict[str, object]:
     now = datetime.now(timezone.utc)
     try:
         first, second = fetch_ung_sources()
-        agreed, agreement_note = latest_session_agreement(first, second)
-        if not agreed:
-            raise DataValidationError(agreement_note)
+        if second is None:
+            agreement_note = "PROVISIONAL: only Yahoo UNG history is available; independent confirmation unavailable"
+        else:
+            agreed, agreement_note = latest_session_agreement(first, second)
+            if not agreed:
+                raise DataValidationError(agreement_note)
         gas, gas_snapshot, _ = fetch_eia_henry_hub_spot()
         ung = first.frame
         # Henry Hub is explanatory only and conservatively lagged by feature builder.
@@ -56,8 +59,9 @@ def run_once(output_dir: str = "data/ledger") -> dict[str, object]:
                 min_train_rows=100,
                 calibration_residuals=calibration_residuals,
             )
+            secondary_hash = second.snapshot.content_sha256 if second is not None else "NO_SECONDARY_PROVIDER"
             fingerprint = hashlib.sha256(
-                (first.snapshot.content_sha256 + second.snapshot.content_sha256 + gas_snapshot.content_sha256
+                (first.snapshot.content_sha256 + secondary_hash + gas_snapshot.content_sha256
                  + str(latest_features.index[0]) + str(horizon)).encode()
             ).hexdigest()
             vintage = ForecastVintage(
@@ -120,7 +124,9 @@ def run_once(output_dir: str = "data/ledger") -> dict[str, object]:
             "forecasts_emitted": emitted,
             "outcomes_scored": scored,
             "evaluation": evaluation_report,
-            "source_providers": [first.snapshot.provider, second.snapshot.provider, gas_snapshot.provider],
+            "source_providers": [first.snapshot.provider]
+                + ([second.snapshot.provider] if second is not None else [])
+                + [gas_snapshot.provider],
             "uncertainty_status": "Return intervals use purged walk-forward residuals when at least 50 are available; high-low range calibration and coverage review remain outstanding.",
             "note": "Research output only; not investment advice or a trading instruction.",
         }
