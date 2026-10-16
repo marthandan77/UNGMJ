@@ -15,7 +15,7 @@ from .features import build_features, build_forward_targets
 from .evaluation import evaluate_strategies_and_features, summarize_evaluation
 from .feeds import fetch_eia_henry_hub_spot, fetch_ung_sources, latest_session_agreement
 from .ledger import ForecastLedger
-from .model import fit_and_forecast
+from .model import fit_and_forecast, walk_forward_predictions
 
 LOG = logging.getLogger("ungmj")
 
@@ -42,11 +42,19 @@ def run_once(output_dir: str = "data/ledger") -> dict[str, object]:
             # A label is eligible only if its entire forward horizon ended before the latest session.
             last_eligible = ung.index[-(horizon + 1)]
             train_targets = targets.loc[targets.index <= last_eligible]
+            oof = walk_forward_predictions(
+                features, targets, min_train_rows=250, step=10, horizon_sessions=horizon
+            )
+            calibration_residuals = (
+                oof["actual_return"].to_numpy(dtype=float) - oof["predicted_return"].to_numpy(dtype=float)
+                if len(oof) >= 50 else None
+            )
             forecast = fit_and_forecast(
                 features,
                 train_targets,
                 float(ung.iloc[-1]["close"]),
                 min_train_rows=100,
+                calibration_residuals=calibration_residuals,
             )
             fingerprint = hashlib.sha256(
                 (first.snapshot.content_sha256 + second.snapshot.content_sha256 + gas_snapshot.content_sha256
