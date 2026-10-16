@@ -138,7 +138,13 @@ def fetch_eia_henry_hub_spot(api_key: str | None = None) -> tuple[pd.DataFrame, 
         best_date_count = 0
         current_year = datetime.now(timezone.utc).year
         for column in workbook.columns:
-            parsed = pd.to_datetime(workbook[column], errors="coerce")
+            parsed = pd.to_datetime(workbook[column], errors="coerce", format="mixed")
+            serials = pd.to_numeric(workbook[column], errors="coerce")
+            serial_mask = serials.between(30000, 60000)
+            if serial_mask.any():
+                parsed.loc[serial_mask] = pd.to_datetime(
+                    serials.loc[serial_mask], unit="D", origin="1899-12-30", errors="coerce"
+                )
             valid_dates = parsed.notna() & (parsed.dt.year >= 1990) & (parsed.dt.year <= current_year + 1)
             count = int(valid_dates.sum())
             if count > best_date_count:
