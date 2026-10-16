@@ -1,5 +1,7 @@
 name: UNG Research Run
 on:
+  push:
+    branches: ["build/**"]
   schedule:
     - cron: "30 2 * * 2-6"
   workflow_dispatch:
@@ -16,7 +18,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: main
+          ref: ${{ github.ref }}
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
