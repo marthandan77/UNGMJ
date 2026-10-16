@@ -68,6 +68,13 @@ def fetch_stooq_ung() -> FetchedFrame:
         "Close": "close", "Volume": "volume"
     }).set_index("session")
     checked = validate_ohlcv(frame, instrument="UNG")
+    today_utc = datetime.now(timezone.utc).date()
+    checked = checked.loc[checked.index.date < today_utc]
+    if checked.empty:
+        raise DataValidationError("Stooq history contains no completed daily session")
+    age_days = (today_utc - checked.index[-1].date()).days
+    if age_days < 0 or age_days > 5:
+        raise DataValidationError(f"Stooq UNG history is stale: {checked.index[-1].date()} ({age_days} calendar days old)")
     return FetchedFrame(checked, _snapshot("stooq", "UNG", url, raw, checked.index[-1].date()), raw)
 
 
@@ -298,19 +305,35 @@ def latest_session_agreement(
 
 
 def fetch_ung_sources() -> tuple[FetchedFrame, FetchedFrame | None]:
-    """Fetch a primary UNG OHLCV source and optional independent confirmation source."""
-    try:
-        primary = fetch_yahoo_ung()
-    except Exception as exc:
-        raise DataValidationError(
-            f"Primary Yahoo UNG source failed: {type(exc).__name__}: {exc}"
-        ) from exc
+    """Fetch the first valid daily OHLCV source and attempt independent confirmation."""
     from .nasdaq import fetch_nasdaq_ung
+
+    fetchers = (fetch_nasdaq_ung, fetch_yahoo_ung, fetch_stooq_ung)
     errors: list[str] = []
-    for fetcher in (fetch_nasdaq_ung, fetch_stooq_ung):
+    primary: FetchedFrame | None = None
+    primary_fetcher = None
+    for fetcher in fetchers:
         try:
-            return primary, fetcher()
+            primary = fetcher()
+            primary_fetcher = fetcher
+            break
         except Exception as exc:
             errors.append(f"{fetcher.__name__}: {type(exc).__name__}: {exc}")
-    LOG.warning("Secondary UNG providers unavailable; primary-only forecasts must remain PROVISIONAL: %s", " | ".join(errors))
+    if primary is None or primary_fetcher is None:
+        raise DataValidationError("All UNG OHLCV sources failed: " + " | ".join(errors))
+
+    for fetcher in fetchers:
+        if fetcher is primary_fetcher:
+            continue
+        try:
+            secondary = fetcher()
+            # A usable but disagreeing fresh source is returned to the caller, which blocks
+            # the run. Only an unavailable/stale source is treated as no confirmation.
+            return primary, secondary
+        except Exception as exc:
+            errors.append(f"{fetcher.__name__}: {type(exc).__name__}: {exc}")
+    LOG.warning(
+        "Independent UNG confirmation unavailable; forecasts must remain PROVISIONAL: %s",
+        " | ".join(errors),
+    )
     return primary, None
