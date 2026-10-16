@@ -22,7 +22,8 @@ Private-use, non-commercial research project for probabilistic forecasts of the 
 9. Never weaken data, validation, or forecast integrity checks merely to produce a forecast.
 
 ## Build status
-The initial implementation establishes reusable data contracts and validation tests. No data provider, forecast, or model is approved yet. The EIA Henry Hub spot parser and UNG OHLCV providers must pass real historical-data validation before modeling begins.
+The implementation includes contracts, candidate free-source ingestion (Yahoo chart and Stooq for UNG; official EIA API or public XLS for Henry Hub spot), fail-closed provider checks, point-in-time features, a Ridge baseline, chronological strategy/feature ablation evaluation, immutable forecast and outcome ledgers, a static read-only dashboard, CI, and one scheduled orchestrator.
+Forecasts remain **PROVISIONAL** until live feed reliability and out-of-sample uncertainty calibration are independently demonstrated. Provider endpoints and the EIA workbook parser still require a successful real-data end-to-end run. The dashboard is built as a workflow artifact; it is not yet deployed to a persistent public hosting URL.
 
 ## Development
 Python 3.12+. Install development dependencies and run tests:
@@ -30,4 +31,4 @@ Python 3.12+. Install development dependencies and run tests:
     python -m pip install -e ".[dev]"
     pytest
 
-The first milestone intentionally has no scheduled workflow and does not fetch external data. Provider and orchestration workflows will be introduced after their contracts and tests are reviewed.
+The scheduled workflow runs at 02:30 UTC Tuesday–Saturday, restores and persists its ledger on the `research-state` branch, and publishes a 30-day workflow artifact containing the read-only dashboard and report. It begins only after the pull request is merged into `main`. A blocked run records the failure rather than manufacturing forecasts.
