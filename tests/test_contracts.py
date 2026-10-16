@@ -70,7 +70,7 @@ def test_source_snapshot_requires_timezone_and_sha256() -> None:
 def test_forecast_vintage_rejects_invalid_probability_and_range() -> None:
     common = dict(
         forecast_id="f-001", instrument="UNG",
-        as_of=datetime(2026, 10, 16, tzinfo=timezone.utc), horizon_sessions=1,
+        as_of=datetime(2026, 10, 16, tzinfo=timezone.utc), origin_session=date(2026, 10, 15), horizon_sessions=1,
         reference_close=10.0, probability_up=0.6, expected_return=0.01,
         expected_close=10.1, predicted_low=9.0, predicted_high=11.0,
         lower_return_quantile=-0.1, upper_return_quantile=0.1,
