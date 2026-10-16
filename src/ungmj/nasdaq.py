@@ -1,24 +1,37 @@
-"""Nasdaq public historical close adapter used only for independent source confirmation."""
+"""Nasdaq public historical OHLCV adapter."""
 from __future__ import annotations
 
 import json
+from datetime import datetime, timezone
+import urllib.parse
+
 import pandas as pd
 
-from .contracts import DataValidationError
+from .contracts import DataValidationError, validate_ohlcv
 from .feeds import FetchedFrame, _get, _snapshot
 
 
 def fetch_nasdaq_ung() -> FetchedFrame:
-    """Fetch Nasdaq's historical closes; primary Yahoo remains the OHLCV modeling feed."""
-    url = "https://api.nasdaq.com/api/quote/UNG/historical?assetclass=etf&limit=5000"
+    """Fetch historical UNG OHLCV from Nasdaq's public historical endpoint."""
+    today = datetime.now(timezone.utc).date()
+    params = urllib.parse.urlencode({
+        "assetclass": "etf",
+        "fromdate": "2007-04-18",
+        "todate": today.isoformat(),
+        "limit": "5000",
+    })
+    url = f"https://api.nasdaq.com/api/quote/UNG/historical?{params}"
     raw = _get(url, headers={
+        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36",
         "Accept": "application/json, text/plain, */*",
         "Origin": "https://www.nasdaq.com",
         "Referer": "https://www.nasdaq.com/",
     })
     try:
         payload = json.loads(raw)
-        rows = payload["data"]["tradesTable"]["rows"]
+        data = payload.get("data") or {}
+        table = data.get("tradesTable") or {}
+        rows = table.get("rows") or []
         frame = pd.DataFrame(rows)
         if frame.empty:
             raise ValueError("empty history")
@@ -27,23 +40,36 @@ def fetch_nasdaq_ung() -> FetchedFrame:
             for column in frame.columns
         }
         date_col = aliases.get("date")
+        open_col = aliases.get("open")
+        high_col = aliases.get("high")
+        low_col = aliases.get("low")
         close_col = aliases.get("close") or aliases.get("closelast") or aliases.get("lastsaleprice")
-        if date_col is None or close_col is None:
-            raise ValueError("date/close fields not present")
-        selected = frame[[date_col, close_col]].copy()
-        selected.columns = ["session", "close"]
+        volume_col = aliases.get("volume")
+        columns = [date_col, open_col, high_col, low_col, close_col, volume_col]
+        if any(column is None for column in columns):
+            raise ValueError(f"OHLCV fields not present: {list(frame.columns)}")
+        selected = frame[columns].copy()
+        selected.columns = ["session", "open", "high", "low", "close", "volume"]
         selected["session"] = pd.to_datetime(selected["session"], errors="raise").dt.normalize()
-        selected["close"] = pd.to_numeric(
-            selected["close"].astype(str).str.replace("$", "", regex=False)
-            .str.replace(",", "", regex=False).str.strip(), errors="raise"
-        )
+        for column in ("open", "high", "low", "close", "volume"):
+            selected[column] = pd.to_numeric(
+                selected[column].astype(str).str.replace("$", "", regex=False)
+                .str.replace(",", "", regex=False).str.strip(),
+                errors="raise",
+            )
         selected = selected.set_index("session").sort_index()
-        if selected.index.has_duplicates or selected["close"].isna().any() or (selected["close"] <= 0).any():
-            raise ValueError("duplicate, missing, or non-positive close values")
+        checked = validate_ohlcv(selected, instrument="UNG")
+        # Never use a current-day bar that may still be forming during market hours.
+        checked = checked.loc[checked.index.date < today]
+        if checked.empty:
+            raise ValueError("no completed daily sessions")
     except (KeyError, IndexError, TypeError, ValueError) as exc:
         raise DataValidationError(f"Nasdaq history response schema/coverage invalid: {exc}") from exc
-    if len(selected) < 500:
-        raise DataValidationError(f"Nasdaq history unexpectedly short: {len(selected)} rows")
+    if len(checked) < 500:
+        raise DataValidationError(f"Nasdaq history unexpectedly short: {len(checked)} rows")
+    age_days = (today - checked.index[-1].date()).days
+    if age_days < 0 or age_days > 5:
+        raise DataValidationError(f"Nasdaq UNG history is stale: {checked.index[-1].date()} ({age_days} calendar days old)")
     return FetchedFrame(
-        selected, _snapshot("nasdaq", "UNG", url, raw, selected.index[-1].date()), raw
+        checked, _snapshot("nasdaq", "UNG", url, raw, checked.index[-1].date()), raw
     )
