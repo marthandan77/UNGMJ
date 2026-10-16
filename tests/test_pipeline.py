@@ -113,6 +113,12 @@ def test_ledger_scores_matured_vintage_once(tmp_path) -> None:
     now = datetime(2026, 1, 7, 12, tzinfo=timezone.utc)
     assert ledger.score_matured(frame, now=now) == 1
     assert ledger.score_matured(frame, now=now) == 0
+    scored = pd.read_json(ledger.outcomes_path, lines=True).iloc[0]
+    assert scored["actual_low"] == pytest.approx(20.0)
+    assert scored["actual_high"] == pytest.approx(21.5)
+    assert scored["low_price_absolute_error"] == pytest.approx(1.0)
+    assert scored["high_price_absolute_error"] == pytest.approx(0.5)
+    assert bool(scored["range_covered"]) is True
 
 
 def test_invalidated_forecast_is_never_scored(tmp_path) -> None:
