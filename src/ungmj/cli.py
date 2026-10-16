@@ -46,7 +46,7 @@ def run_once(output_dir: str = "data/ledger") -> dict[str, object]:
             last_eligible = ung.index[-(horizon + 1)]
             train_targets = targets.loc[targets.index <= last_eligible]
             oof = walk_forward_predictions(
-                features, targets, min_train_rows=250, step=10, horizon_sessions=horizon
+                features, targets, min_train_rows=100, step=10, horizon_sessions=horizon
             )
             calibration_residuals = (
                 oof["actual_return"].to_numpy(dtype=float) - oof["predicted_return"].to_numpy(dtype=float)
@@ -95,12 +95,15 @@ def run_once(output_dir: str = "data/ledger") -> dict[str, object]:
                 eval_targets = build_forward_targets(ung, eval_horizon)
                 horizon_rows = evaluate_strategies_and_features(
                     features, eval_targets, horizon_sessions=eval_horizon,
-                    min_train_rows=250, step=20,
+                    min_train_rows=100, step=20,
                 )
                 evaluation_rows.extend(horizon_rows.to_dict(orient="records"))
             evaluation_frame = pd.DataFrame(evaluation_rows)
+            evaluation_sessions = int(evaluation_frame["session"].nunique()) if "session" in evaluation_frame else 0
             evaluation_report = {
-                "status": "COMPLETE",
+                "status": "COMPLETE" if evaluation_sessions >= 50 else "PRELIMINARY",
+                "evaluation_sessions": evaluation_sessions,
+                "minimum_sessions_for_robust_review": 50,
                 "method": "chronological walk-forward with purged horizon labels",
                 "summaries": summarize_evaluation(evaluation_frame),
                 "automatic_promotion": False,
@@ -119,7 +122,12 @@ def run_once(output_dir: str = "data/ledger") -> dict[str, object]:
             "run_at": now.isoformat(),
             "status": "PROVISIONAL",
             "latest_ung_session": str(ung.index[-1].date()),
+            "ung_first_session": str(ung.index[0].date()),
+            "ung_history_rows": int(len(ung)),
             "latest_henry_hub_session": str(gas.index[-1].date()),
+            "henry_hub_first_session": str(gas.index[0].date()),
+            "henry_hub_history_rows": int(len(gas)),
+            "feature_rows": int(len(features)),
             "provider_agreement": agreement_note,
             "forecasts_emitted": emitted,
             "outcomes_scored": scored,
