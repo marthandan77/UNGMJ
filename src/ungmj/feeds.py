@@ -163,3 +163,55 @@ def fetch_eia_henry_hub_spot(api_key: str | None = None) -> tuple[pd.DataFrame, 
     )
     return frame[["henry_hub_spot"]], snapshot, raw
 
+
+
+def latest_session_agreement(
+    first: FetchedFrame, second: FetchedFrame, *, close_tolerance: float = 0.03
+) -> tuple[bool, str]:
+    """Require fresh, overlapping, price-consistent histories from distinct distributors."""
+    a, b = first.frame, second.frame
+    if first.snapshot.provider == second.snapshot.provider:
+        return False, "Providers are not independent"
+    if a.empty or b.empty:
+        return False, "One provider returned an empty dataset"
+    if a.index[-1] != b.index[-1]:
+        return False, f"Latest sessions disagree: {a.index[-1].date()} vs {b.index[-1].date()}"
+    age_days = (datetime.now(timezone.utc).date() - a.index[-1].date()).days
+    if age_days < 0 or age_days > 5:
+        return False, f"Latest UNG session is stale: {a.index[-1].date()} ({age_days} calendar days old)"
+    common = a[["close"]].join(b[["close"]], how="inner", lsuffix="_a", rsuffix="_b")
+    if len(common) < 500:
+        return False, f"Insufficient historical overlap: {len(common)} sessions; need 500"
+    history_gap = (
+        (common["close_a"] - common["close_b"]).abs()
+        / common[["close_a", "close_b"]].abs().max(axis=1)
+    ).median()
+    if float(history_gap) > close_tolerance:
+        return False, (
+            f"Historical close disagreement median {history_gap:.2%} "
+            f"exceeds {close_tolerance:.2%}"
+        )
+    left, right = float(a.iloc[-1]["close"]), float(b.iloc[-1]["close"])
+    relative = abs(left - right) / max(abs(left), abs(right))
+    if relative > close_tolerance:
+        return False, f"Latest closes differ by {relative:.2%}, exceeding {close_tolerance:.2%}"
+    return True, (
+        f"Confirmed session {a.index[-1].date()}; latest close difference {relative:.3%}; "
+        f"median historical difference {history_gap:.3%}"
+    )
+
+
+def fetch_ung_sources() -> tuple[FetchedFrame, FetchedFrame]:
+    """Fetch both candidate sources; no single-source fallback is allowed."""
+    errors: list[str] = []
+    results: list[FetchedFrame] = []
+    for fetcher in (fetch_yahoo_ung, fetch_stooq_ung):
+        try:
+            results.append(fetcher())
+        except Exception as exc:
+            errors.append(f"{fetcher.__name__}: {type(exc).__name__}: {exc}")
+    if len(results) != 2:
+        raise DataValidationError(
+            "Both independent UNG sources are required for confirmation. " + " | ".join(errors)
+        )
+    return results[0], results[1]
