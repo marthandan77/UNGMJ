@@ -116,7 +116,7 @@ if report.get("error"):
 m1, m2, m3, m4 = st.columns(4)
 m1.metric("UNG history rows", str(report.get("ung_history_rows", "—")))
 m2.metric("Henry Hub rows", str(report.get("henry_hub_history_rows", "—")))
-m3.metric("Forecasts this run", str(report.get("forecasts_emitted", 0)))
+m3.metric("Valid forecasts this run", str(report.get("valid_forecasts_emitted", report.get("forecasts_emitted", 0))))
 m4.metric("Matured outcomes", str(len(outcomes)))
 
 st.subheader("Latest forecast vintages")
