@@ -102,24 +102,40 @@ def fetch_eia_henry_hub_spot(api_key: str | None = None) -> tuple[pd.DataFrame, 
             ("api_key", key), ("frequency", "daily"), ("data[0]", "value"),
             ("facets[series][]", "RNGWHHD"), ("start", "1997-01-01"),
             ("sort[0][column]", "period"), ("sort[0][direction]", "asc"),
-            ("offset", "0"), ("length", "50000"),
+            ("length", "5000"),
         ]
-        url = "https://api.eia.gov/v2/natural-gas/pri/fut/data/?" + urllib.parse.urlencode(params)
-        raw = _get(url)
+        base_url = "https://api.eia.gov/v2/natural-gas/pri/fut/data/"
+        pages: list[str] = []
+        rows: list[dict[str, Any]] = []
+        offset = 0
         try:
-            payload = json.loads(raw)
-            frame = pd.DataFrame(payload["response"]["data"])
+            while True:
+                url = base_url + "?" + urllib.parse.urlencode(params + [("offset", str(offset))])
+                page_raw = _get(url)
+                payload = json.loads(page_raw)
+                page_rows = payload["response"]["data"]
+                if not isinstance(page_rows, list):
+                    raise ValueError("response data is not a list")
+                pages.append(page_raw)
+                rows.extend(page_rows)
+                if len(page_rows) < 5000:
+                    break
+                offset += len(page_rows)
+                if offset >= 50000:
+                    raise ValueError("EIA pagination exceeded the 50,000-row safety limit")
+            frame = pd.DataFrame(rows)
             if not {"period", "value"}.issubset(frame.columns) or frame.empty:
                 raise ValueError("missing period/value rows")
             frame = frame.rename(columns={"period": "session", "value": "henry_hub_spot"})
             frame["session"] = pd.to_datetime(frame["session"], errors="raise").dt.normalize()
             frame["henry_hub_spot"] = pd.to_numeric(frame["henry_hub_spot"], errors="raise")
             frame = frame.set_index("session").sort_index()
+            raw = "\\n".join(pages)
+            raw_for_hash = raw.encode("utf-8")
         except (KeyError, TypeError, ValueError) as exc:
             raise DataValidationError("EIA API response did not match expected Henry Hub daily schema") from exc
         provider = "eia_api"
         source_url = url.split("?")[0]
-        raw_for_hash = raw.encode("utf-8")
     else:
         # Official EIA historical workbook is public and requires no account or API key.
         source_url = "https://www.eia.gov/dnav/ng/hist_xls/RNGWHHDd.xls"
