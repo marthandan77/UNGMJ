@@ -53,9 +53,10 @@ def run_once(output_dir: str = "data/ledger") -> dict[str, object]:
                  + str(latest_features.index[0]) + str(horizon)).encode()
             ).hexdigest()
             vintage = ForecastVintage(
-                forecast_id=f"UNG-{latest_features.index[0].date().isoformat()}-{horizon}D-{fingerprint[:12]}",
+                forecast_id=f"UNG-{latest_features.index[0].date().isoformat()}T{now.strftime('%H%M%S')}-{horizon}D-{fingerprint[:12]}",
                 instrument="UNG",
                 as_of=now,
+                origin_session=latest_features.index[0].date(),
                 horizon_sessions=horizon,
                 reference_close=float(ung.iloc[-1]["close"]),
                 probability_up=forecast.probability_up,
