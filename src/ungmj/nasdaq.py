@@ -1,14 +1,15 @@
-"""Nasdaq public-history adapter for the UNG ETF."""
+"""Nasdaq public historical close adapter used only for independent source confirmation."""
 from __future__ import annotations
 
 import json
 import pandas as pd
 
-from .contracts import DataValidationError, validate_ohlcv
+from .contracts import DataValidationError
 from .feeds import FetchedFrame, _get, _snapshot
 
 
 def fetch_nasdaq_ung() -> FetchedFrame:
+    """Fetch Nasdaq's historical closes; primary Yahoo remains the OHLCV modeling feed."""
     url = "https://api.nasdaq.com/api/quote/UNG/historical?assetclass=etf&limit=5000"
     raw = _get(url, headers={
         "Accept": "application/json, text/plain, */*",
@@ -22,28 +23,27 @@ def fetch_nasdaq_ung() -> FetchedFrame:
         if frame.empty:
             raise ValueError("empty history")
         aliases = {
-            "".join(ch for ch in str(col).lower() if ch.isalnum()): col
-            for col in frame.columns
+            "".join(ch for ch in str(column).lower() if ch.isalnum()): column
+            for column in frame.columns
         }
-        def col(*names: str) -> str:
-            for name in names:
-                if name in aliases:
-                    return aliases[name]
-            raise ValueError("required OHLCV column missing")
-        selected = frame[[col("date"), col("open"), col("high"), col("low"),
-                          col("close", "closelast", "lastsaleprice"), col("volume")]].copy()
-        selected.columns = ["session", "open", "high", "low", "close", "volume"]
+        date_col = aliases.get("date")
+        close_col = aliases.get("close") or aliases.get("closelast") or aliases.get("lastsaleprice")
+        if date_col is None or close_col is None:
+            raise ValueError("date/close fields not present")
+        selected = frame[[date_col, close_col]].copy()
+        selected.columns = ["session", "close"]
         selected["session"] = pd.to_datetime(selected["session"], errors="raise").dt.normalize()
-        for field in ("open", "high", "low", "close", "volume"):
-            selected[field] = pd.to_numeric(
-                selected[field].astype(str).str.replace("$", "", regex=False)
-                .str.replace(",", "", regex=False).str.strip(), errors="raise"
-            )
-        checked = validate_ohlcv(selected.set_index("session"), instrument="UNG")
+        selected["close"] = pd.to_numeric(
+            selected["close"].astype(str).str.replace("$", "", regex=False)
+            .str.replace(",", "", regex=False).str.strip(), errors="raise"
+        )
+        selected = selected.set_index("session").sort_index()
+        if selected.index.has_duplicates or selected["close"].isna().any() or (selected["close"] <= 0).any():
+            raise ValueError("duplicate, missing, or non-positive close values")
     except (KeyError, IndexError, TypeError, ValueError) as exc:
-        raise DataValidationError("Nasdaq history response schema/coverage invalid") from exc
-    if len(checked) < 500:
-        raise DataValidationError("Nasdaq history unexpectedly short")
+        raise DataValidationError(f"Nasdaq history response schema/coverage invalid: {exc}") from exc
+    if len(selected) < 500:
+        raise DataValidationError(f"Nasdaq history unexpectedly short: {len(selected)} rows")
     return FetchedFrame(
-        checked, _snapshot("nasdaq", "UNG", url, raw, checked.index[-1].date()), raw
+        selected, _snapshot("nasdaq", "UNG", url, raw, selected.index[-1].date()), raw
     )
