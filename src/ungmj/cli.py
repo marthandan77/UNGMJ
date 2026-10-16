@@ -145,7 +145,9 @@ def main() -> None:
     parser.add_argument("--verbose", action="store_true")
     args = parser.parse_args()
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
-    run_once(args.output_dir)
+    report = run_once(args.output_dir)
+    if report.get("status") == "BLOCKED":
+        raise SystemExit(2)
 
 
 if __name__ == "__main__":
