@@ -28,7 +28,14 @@ def fetch_text(path: str) -> str:
 
 @st.cache_data(ttl=300, show_spinner=False)
 def load_json(path: str) -> dict[str, Any]:
-    return json.loads(fetch_text(path))
+    raw = fetch_text(path).strip()
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        # Tolerate a literal backslash-n left by an older pipeline run.
+        if raw.endswith("\\n"):
+            return json.loads(raw[:-2])
+        raise
 
 
 @st.cache_data(ttl=300, show_spinner=False)
