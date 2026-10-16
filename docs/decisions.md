@@ -11,7 +11,7 @@
 - Data integrity: fail closed on stale, incomplete, inconsistent, or misaligned data.
 - Forecast ledger: immutable forecast vintages, with one-time outcome scoring after maturity.
 - Workflow: one canonical scheduled orchestrator; dashboard is presentation-only; no email delivery, broker integration, or trade execution.
-- Candidate UNG providers: Yahoo chart and Stooq, gated on fresh latest-session agreement and at least 500 overlapping history sessions.
+- Candidate UNG providers: Nasdaq historical OHLCV as first choice, Yahoo chart and Stooq as fallback/confirmation sources, gated on freshness and independent-session agreement with at least 500 overlapping history sessions.
 - Required Henry Hub spot: official EIA API when configured, otherwise the public EIA historical XLS workbook.
 - Forecasts remain PROVISIONAL pending real-data end-to-end validation and out-of-sample uncertainty calibration.
 
