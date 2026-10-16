@@ -29,7 +29,7 @@ def test_features_are_past_only_and_targets_are_separate() -> None:
     assert "forward_return" not in features
     assert targets["forward_return"].iloc[-3:].isna().all()
     changed_future = frame.copy()
-    changed_future.iloc[-1, changed_future.columns.get_loc("close")] *= 1.5
+    changed_future.iloc[-1, changed_future.columns.get_indexer(["open", "high", "low", "close"])] *= 1.5
     changed_features = build_features(changed_future)
     pd.testing.assert_series_equal(features.iloc[-2], changed_features.iloc[-2])
 
