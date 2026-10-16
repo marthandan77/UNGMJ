@@ -86,20 +86,45 @@ class ForecastLedger:
             # Never score before the actual target session has closed.
             if pd.Timestamp(now.date()) < target_session:
                 continue
+            target_window = eligible[:horizon]
             reference = float(forecast["reference_close"])
             target_close = float(bars.loc[target_session, "close"])
             realized_return = target_close / reference - 1.0
+            actual_low = float(bars.loc[target_window, "low"].min())
+            actual_high = float(bars.loc[target_window, "high"].max())
+            predicted_low = float(forecast["predicted_low"])
+            predicted_high = float(forecast["predicted_high"])
+            actual_low_return = actual_low / reference - 1.0
+            actual_high_return = actual_high / reference - 1.0
+            predicted_low_return = predicted_low / reference - 1.0
+            predicted_high_return = predicted_high / reference - 1.0
             outcomes.append({
                 "forecast_id": fid,
                 "model_name": str(forecast.get("model_name", "unknown")),
+                "model_version": str(forecast.get("model_version", "unknown")),
                 "horizon_sessions": horizon,
                 "scored_at": now.astimezone(timezone.utc).isoformat(),
                 "target_session": target_session.date().isoformat(),
                 "realized_close": target_close,
                 "realized_return": realized_return,
+                "actual_low": actual_low,
+                "actual_high": actual_high,
+                "predicted_low": predicted_low,
+                "predicted_high": predicted_high,
+                "actual_low_return": actual_low_return,
+                "actual_high_return": actual_high_return,
+                "predicted_low_return": predicted_low_return,
+                "predicted_high_return": predicted_high_return,
+                "low_range_error": actual_low_return - predicted_low_return,
+                "high_range_error": actual_high_return - predicted_high_return,
+                "range_covered": predicted_low <= actual_low and predicted_high >= actual_high,
+                "range_width_pct": predicted_high / reference - predicted_low / reference,
                 "direction_correct": (float(forecast["probability_up"]) >= 0.5) == (realized_return > 0),
                 "brier_score": (float(forecast["probability_up"]) - float(realized_return > 0)) ** 2,
                 "absolute_return_error": abs(float(forecast["expected_return"]) - realized_return),
+                "low_price_absolute_error": abs(predicted_low - actual_low),
+                "high_price_absolute_error": abs(predicted_high - actual_high),
+                "range_width_price": predicted_high - predicted_low,
             })
         for outcome in outcomes:
             self._append(self.outcomes_path, outcome)

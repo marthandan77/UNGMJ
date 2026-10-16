@@ -32,3 +32,25 @@ def test_registry_models_fit_independently(spec):
     assert np.isfinite(forecast.expected_return)
     assert forecast.expected_close > 0
     assert forecast.predicted_low <= forecast.predicted_high
+
+
+def test_range_bounds_use_matured_out_of_sample_calibration():
+    rng = np.random.default_rng(20261017)
+    index = pd.date_range("2020-01-01", periods=140, freq="B")
+    features = pd.DataFrame(rng.normal(size=(140, 5)), index=index,
+                            columns=["return_1", "return_5", "realized_vol_5", "range_expansion", "gas_return_1"])
+    target_return = 0.002 * features["return_1"] - 0.001 * features["realized_vol_5"]
+    targets = pd.DataFrame({
+        "forward_return": target_return,
+        "forward_high_return": target_return + 0.025,
+        "forward_low_return": target_return - 0.018,
+    }, index=index)
+    low_errors = np.full(40, -0.01)
+    high_errors = np.full(40, 0.015)
+    forecast = fit_model_forecast("ridge", features, targets, 20.0, min_train_rows=100,
+                                  calibration_low_errors=low_errors,
+                                  calibration_high_errors=high_errors)
+    assert forecast.calibration_sample_count == 40
+    assert forecast.calibration_method == "matured_out_of_sample_range_error_quantiles"
+    assert forecast.predicted_low < 20.0 * (1 - 0.018)
+    assert forecast.predicted_high > 20.0 * (1 + 0.025)

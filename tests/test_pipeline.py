@@ -106,7 +106,10 @@ def test_ledger_scores_matured_vintage_once(tmp_path) -> None:
     ledger = ForecastLedger(tmp_path)
     as_of = datetime(2026, 1, 5, 22, tzinfo=timezone.utc)
     ledger.append_forecast(vintage("one", as_of, horizon=1))
-    frame = pd.DataFrame({"close": [20.0, 21.0]}, index=pd.to_datetime(["2026-01-05", "2026-01-06"]))
+    frame = pd.DataFrame({
+        "open": [20.0, 20.5], "high": [20.5, 21.5], "low": [19.5, 20.0],
+        "close": [20.0, 21.0], "volume": [1000, 1100],
+    }, index=pd.to_datetime(["2026-01-05", "2026-01-06"]))
     now = datetime(2026, 1, 7, 12, tzinfo=timezone.utc)
     assert ledger.score_matured(frame, now=now) == 1
     assert ledger.score_matured(frame, now=now) == 0

@@ -87,6 +87,8 @@ MODEL_REGISTRY: tuple[ModelSpec, ...] = (
 def fit_model_forecast(
     model_key: str, features: pd.DataFrame, targets: pd.DataFrame, reference_close: float,
     *, min_train_rows: int = 100, calibration_residuals: np.ndarray | None = None,
+    calibration_low_errors: np.ndarray | None = None,
+    calibration_high_errors: np.ndarray | None = None,
 ) -> ModelForecast:
     spec = next((item for item in MODEL_REGISTRY if item.key == model_key), None)
     if spec is None:
@@ -96,7 +98,8 @@ def fit_model_forecast(
     aligned = aligned.dropna(subset=label_cols)
     if len(aligned) < min_train_rows:
         raise DataValidationError(f"Need at least {min_train_rows} eligible rows; have {len(aligned)}")
-    x, y = aligned[list(features.columns)], aligned["forward_return"].to_numpy(dtype=float)
+    x = aligned[list(features.columns)]
+    y = aligned["forward_return"].to_numpy(dtype=float)
     model = spec.factory()
     model.fit(x, y)
     predicted = float(model.predict(features.iloc[[-1]])[0])
@@ -108,15 +111,35 @@ def fit_model_forecast(
     lower, upper = np.quantile(source, [0.1, 0.9])
     probability = (float(np.clip(np.mean(predicted + source > 0), 0.01, 0.99))
                    if len(source) >= 20 else _empirical_probability(predicted, source))
-    low_return = float(np.quantile(aligned["forward_low_return"], 0.1))
-    high_return = float(np.quantile(aligned["forward_high_return"], 0.9))
+
+    # Predict the actual future low and high directly; do not substitute unconditional
+    # historical quantiles for a model-specific five-session range.
+    low_model, high_model = spec.factory(), spec.factory()
+    low_model.fit(x, aligned["forward_low_return"].to_numpy(dtype=float))
+    high_model.fit(x, aligned["forward_high_return"].to_numpy(dtype=float))
+    low_return = float(low_model.predict(features.iloc[[-1]])[0])
+    high_return = float(high_model.predict(features.iloc[[-1]])[0])
+    low_errors = np.asarray(calibration_low_errors, dtype=float) if calibration_low_errors is not None else np.array([])
+    high_errors = np.asarray(calibration_high_errors, dtype=float) if calibration_high_errors is not None else np.array([])
+    low_errors, high_errors = low_errors[np.isfinite(low_errors)], high_errors[np.isfinite(high_errors)]
+    range_n = min(len(low_errors), len(high_errors))
+    if range_n >= 30:
+        # Errors are actual minus forecast returns from previously matured, unseen vintages.
+        low_return += float(np.quantile(low_errors, 0.10))
+        high_return += float(np.quantile(high_errors, 0.90))
+        range_method = "matured_out_of_sample_range_error_quantiles"
+    else:
+        range_method = "direct_low_high_models_uncalibrated"
+    low_price = max(0.01, reference_close * (1 + low_return))
+    high_price = max(0.02, reference_close * (1 + high_return))
+    # Keep the interval structurally valid even when the two independently fitted heads cross.
+    predicted_low, predicted_high = min(low_price, high_price), max(low_price, high_price)
     return ModelForecast(
         probability_up=probability, expected_return=predicted,
         expected_close=reference_close * (1 + predicted),
-        predicted_low=max(0.01, reference_close * (1 + low_return)),
-        predicted_high=max(0.02, reference_close * (1 + high_return)),
+        predicted_low=predicted_low, predicted_high=predicted_high,
         lower_return_quantile=float(lower), upper_return_quantile=float(upper),
-        model_name=model_key, model_version="0.1.0",
-        calibration_sample_count=len(calibration),
-        calibration_method="purged_walk_forward_residuals" if len(calibration) >= 50 else "in_sample_fallback",
+        model_name=model_key, model_version="0.2.0",
+        calibration_sample_count=range_n,
+        calibration_method=range_method,
     )
