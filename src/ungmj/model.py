@@ -48,6 +48,7 @@ def fit_and_forecast(
     *,
     min_train_rows: int = 100,
     alpha: float = 10.0,
+    calibration_residuals: np.ndarray | None = None,
 ) -> ModelForecast:
     """Fit a Ridge point forecast; range quantiles use training residuals (not yet calibrated)."""
     if reference_close <= 0 or not np.isfinite(reference_close):
@@ -65,12 +66,20 @@ def fit_and_forecast(
     predicted = float(pipeline.predict(features.iloc[[-1]])[0])
     fitted = pipeline.predict(x)
     residuals = y - fitted
-    # Explicitly label this as preliminary: in-sample residual bands are optimistic.
-    lower, upper = np.quantile(residuals, [0.1, 0.9])
+    # Prefer strictly out-of-sample residuals. In-sample residuals are fallback only and
+    # must never be described as calibrated.
+    calibration = np.asarray(calibration_residuals, dtype=float) if calibration_residuals is not None else np.array([])
+    calibration = calibration[np.isfinite(calibration)]
+    if len(calibration) >= 50:
+        lower, upper = np.quantile(calibration, [0.1, 0.9])
+        probability = float(np.clip(np.mean(predicted + calibration > 0), 0.01, 0.99))
+    else:
+        lower, upper = np.quantile(residuals, [0.1, 0.9])
+        probability = _empirical_probability(predicted, residuals)
     low_return = float(np.quantile(aligned["forward_low_return"], 0.1))
     high_return = float(np.quantile(aligned["forward_high_return"], 0.9))
     return ModelForecast(
-        probability_up=_empirical_probability(predicted, residuals),
+        probability_up=probability,
         expected_return=predicted,
         expected_close=reference_close * (1 + predicted),
         predicted_low=max(0.01, reference_close * (1 + low_return)),
