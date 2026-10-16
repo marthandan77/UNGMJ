@@ -2,6 +2,6 @@
   "error": "name 'LOG' is not defined",
   "error_type": "NameError",
   "forecasts_emitted": 0,
-  "run_at": "2026-10-16T11:47:38.580784+00:00",
+  "run_at": "2026-10-16T11:48:15.125943+00:00",
   "status": "BLOCKED"
 }
