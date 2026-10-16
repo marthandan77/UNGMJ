@@ -140,7 +140,7 @@ def fetch_eia_henry_hub_spot(api_key: str | None = None) -> tuple[pd.DataFrame, 
         week_col = None
         weekday_cols: dict[str, int] = {}
         for row_index, row in workbook.iterrows():
-            values = [str(value).replace("chr(160)", " ").strip().lower() for value in row.tolist()]
+            values = [str(value).replace(chr(160), " ").strip().lower() for value in row.tolist()]
             if "week of" in values:
                 header_row = row_index
                 week_col = values.index("week of")
@@ -165,7 +165,7 @@ def fetch_eia_henry_hub_spot(api_key: str | None = None) -> tuple[pd.DataFrame, 
         )
         observations: list[tuple[datetime, float]] = []
         for _, row in workbook.iloc[header_row + 1:].iterrows():
-            match = pattern.search(str(row.iloc[week_col]).replace("chr(160)", " ").strip())
+            match = pattern.search(str(row.iloc[week_col]).replace(chr(160), " ").strip())
             if not match:
                 continue
             year = int(match.group("year"))
