@@ -156,6 +156,9 @@ def fetch_eia_henry_hub_spot(api_key: str | None = None) -> tuple[pd.DataFrame, 
     if len(frame) < 1000:
         raise DataValidationError(f"EIA Henry Hub history unexpectedly short: {len(frame)} rows")
     published = frame.index[-1].date()
+    age_days = (datetime.now(timezone.utc).date() - published).days
+    if age_days < 0 or age_days > 7:
+        raise DataValidationError(f"EIA Henry Hub spot data is stale: {published} ({age_days} calendar days old)")
     snapshot = SourceSnapshot(
         provider=provider, instrument="HENRY_HUB_SPOT",
         retrieved_at=datetime.now(timezone.utc), published_through=published,
