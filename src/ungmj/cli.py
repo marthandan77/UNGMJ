@@ -25,7 +25,7 @@ def run_once(output_dir: str = "data/ledger") -> dict[str, object]:
     try:
         first, second = fetch_ung_sources()
         if second is None:
-            agreement_note = "PROVISIONAL: only Yahoo UNG history is available; independent confirmation unavailable"
+            agreement_note = "PROVISIONAL: only the primary UNG provider is available; independent confirmation unavailable"
         else:
             agreed, agreement_note = latest_session_agreement(first, second)
             if not agreed:
