@@ -1,0 +1,6 @@
+{
+  "automatic_promotion": false,
+  "error": "Insufficient history for evaluation: need at least 252 rows",
+  "error_type": "DataValidationError",
+  "status": "BLOCKED"
+}\n

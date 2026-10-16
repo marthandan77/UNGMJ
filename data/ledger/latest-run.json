@@ -1,7 +1,21 @@
 {
-  "error": "EIA workbook weekly header not recognized; shape=(5712, 2); sample=[{0: 'Back to Contents', 1: 'Data 1: Henry Hub Natural Gas Spot Price (Dollars per Million Btu)'}, {0: 'Sourcekey', 1: 'RNGWHHD'}, {0: 'Date', 1: 'Henry Hub Natural Gas Spot Price (Dollars per Million Btu)'}, {0: '1997-01-07 00:00:00', 1: '3.82'}, {0: '1997-01-08 00:00:00', 1: '3.8'}, {0: '1997-01-09 00:00:00', 1: '3.61'}, {0: '1997-01-10 00:00:00', 1: '3.92'}, {0: '1997-01-13 00:00:00', 1: '4'}, {0: '1997-01-14 00:00:00', 1: '4.01'}, {0: '1997-01-15 00:00:00', 1: '4.34'}]",
-  "error_type": "DataValidationError",
-  "forecasts_emitted": 0,
-  "run_at": "2026-10-16T14:32:45.552431+00:00",
-  "status": "BLOCKED"
+  "evaluation": {
+    "automatic_promotion": false,
+    "error": "Insufficient history for evaluation: need at least 252 rows",
+    "error_type": "DataValidationError",
+    "status": "BLOCKED"
+  },
+  "forecasts_emitted": 4,
+  "latest_henry_hub_session": "2026-10-14",
+  "latest_ung_session": "2026-10-16",
+  "note": "Research output only; not investment advice or a trading instruction.",
+  "outcomes_scored": 0,
+  "provider_agreement": "PROVISIONAL: only Yahoo UNG history is available; independent confirmation unavailable",
+  "run_at": "2026-10-16T14:33:49.489622+00:00",
+  "source_providers": [
+    "yahoo_chart",
+    "eia_bulk_xls"
+  ],
+  "status": "PROVISIONAL",
+  "uncertainty_status": "Return intervals use purged walk-forward residuals when at least 50 are available; high-low range calibration and coverage review remain outstanding."
 }
