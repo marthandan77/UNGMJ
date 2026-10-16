@@ -1,7 +1,5 @@
 name: UNG Research Run
 on:
-  push:
-    branches: ["build/**"]
   schedule:
     - cron: "30 2 * * 2-6"
   workflow_dispatch:
@@ -12,10 +10,13 @@ concurrency:
   cancel-in-progress: false
 jobs:
   research:
+    if: github.repository == 'marthandan77/UNGMJ'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: main
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -24,20 +25,30 @@ jobs:
       - run: python -m pip install -e .
       - name: Restore persistent research ledger
         run: |
-          git fetch origin research-state
-          git checkout origin/research-state -- data/ledger
           mkdir -p data/ledger
+          if git ls-remote --exit-code --heads origin research-state >/dev/null 2>&1; then
+            git fetch origin research-state
+            git checkout origin/research-state -- data/ledger || true
+          fi
       - name: Run fail-closed forecast pipeline
         run: python -m ungmj.cli --output-dir data/ledger
       - name: Build read-only dashboard
         if: always()
-        run: python scripts/publish_site.py
+        run: |
+          mkdir -p data/ledger
+          python scripts/publish_site.py
       - name: Persist append-only research state
         if: always()
         run: |
-          mkdir -p /tmp/ungmj-ledger-state
+          mkdir -p data/ledger /tmp/ungmj-ledger-state
           cp -a data/ledger/. /tmp/ungmj-ledger-state/
-          git worktree add -b research-state /tmp/ungmj-state origin/research-state
+          if git ls-remote --exit-code --heads origin research-state >/dev/null 2>&1; then
+            git fetch origin research-state
+            git worktree add -b research-state /tmp/ungmj-state origin/research-state
+          else
+            git fetch origin main
+            git worktree add -b research-state /tmp/ungmj-state origin/main
+          fi
           mkdir -p /tmp/ungmj-state/data/ledger
           cp -a /tmp/ungmj-ledger-state/. /tmp/ungmj-state/data/ledger/
           cd /tmp/ungmj-state
