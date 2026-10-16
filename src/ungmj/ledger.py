@@ -91,11 +91,14 @@ class ForecastLedger:
             realized_return = target_close / reference - 1.0
             outcomes.append({
                 "forecast_id": fid,
+                "model_name": str(forecast.get("model_name", "unknown")),
+                "horizon_sessions": horizon,
                 "scored_at": now.astimezone(timezone.utc).isoformat(),
                 "target_session": target_session.date().isoformat(),
                 "realized_close": target_close,
                 "realized_return": realized_return,
                 "direction_correct": (float(forecast["probability_up"]) >= 0.5) == (realized_return > 0),
+                "brier_score": (float(forecast["probability_up"]) - float(realized_return > 0)) ** 2,
                 "absolute_return_error": abs(float(forecast["expected_return"]) - realized_return),
             })
         for outcome in outcomes:
