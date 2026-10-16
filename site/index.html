@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow"><title>UNGMJ · Research Forecasts</title>
+<style>
+:root{color-scheme:light dark;font:16px/1.5 system-ui,sans-serif}body{max-width:1050px;margin:0 auto;padding:1.25rem}
+header,.panel{border:1px solid #8886;border-radius:12px;padding:1rem;margin:1rem 0}.muted{opacity:.75}.status{font-weight:700}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:.8rem}.metric{border:1px solid #8886;border-radius:10px;padding:.8rem}
+.table-wrap{overflow-x:auto}table{border-collapse:collapse;width:100%;min-width:650px}th,td{text-align:left;padding:.55rem;border-bottom:1px solid #8885}
+</style></head>
+<body>
+<header><h1>UNGMJ — UNG ETF research forecasts</h1><p class="muted">Read-only research dashboard. Forecasts are not investment advice or trade instructions.</p><p id="run-status" class="status">Loading report…</p><p id="run-detail" class="muted"></p></header>
+<section class="grid" id="metrics"></section>
+<section class="panel"><h2>Latest forecast vintages</h2><p class="muted">Archived research estimates, not live trading signals.</p><div class="table-wrap"><table><thead><tr><th>Issued (UTC)</th><th>Horizon</th><th>Reference</th><th>Expected close</th><th>Up probability</th><th>Predicted range</th><th>Status</th></tr></thead><tbody id="forecasts"></tbody></table></div></section>
+<section class="panel"><h2>Matured outcome scoring</h2><p id="outcome-summary" class="muted">Loading…</p><div class="table-wrap"><table><thead><tr><th>Forecast ID</th><th>Target session</th><th>Realized close</th><th>Realized return</th><th>Direction correct</th><th>Absolute error</th></tr></thead><tbody id="outcomes"></tbody></table></div></section>
+<section class="panel"><h2>Data and model governance</h2><ul><li>Target instrument is UNG; Henry Hub spot is explanatory only.</li><li>Weather is excluded. Only free public sources are allowed.</li><li>Ridge is the fixed baseline; challengers require shadow evaluation and explicit review.</li><li>Chronological validation only. No fabricated historical forecast vintages.</li><li>Data/provider failures must block or downgrade forecasts.</li></ul></section>
+<script>
+const fmt=(v,d=2)=>Number.isFinite(Number(v))?Number(v).toFixed(d):"—";
+const pct=v=>Number.isFinite(Number(v))?(Number(v)*100).toFixed(1)+"%":"—";
+const cell=(tag,text)=>{const e=document.createElement(tag);e.textContent=text??"—";return e};
+async function load(){try{
+const [r,f,o,m]=await Promise.all(["latest-run.json","forecasts.json","outcomes.json","dashboard-meta.json"].map(p=>fetch(p,{cache:"no-store"}).then(x=>{if(!x.ok)throw Error("Could not load "+p);return x.json()})));
+document.getElementById("run-status").textContent="Run status: "+(r.status||"UNKNOWN");
+document.getElementById("run-detail").textContent="Run at "+(r.run_at||"unknown")+" · UNG session "+(r.latest_ung_session||"—")+" · Henry Hub session "+(r.latest_henry_hub_session||"—")+(r.error?" · "+r.error:"");
+const host=document.getElementById("metrics");host.replaceChildren();
+for(const [label,value] of [["Forecast vintages",m.forecast_vintages_available],["Matured outcomes",m.matured_outcomes_available],["Forecasts emitted this run",r.forecasts_emitted??0],["Outcomes scored this run",r.outcomes_scored??0]]){const box=cell("div","");box.className="metric";box.append(cell("div",label),cell("h2",String(value??0)));host.append(box)}
+const ft=document.getElementById("forecasts");ft.replaceChildren();[...f].reverse().slice(0,40).forEach(x=>{const tr=cell("tr","");[x.as_of,x.horizon_sessions+" sessions",fmt(x.reference_close),fmt(x.expected_close),pct(x.probability_up),fmt(x.predicted_low)+" – "+fmt(x.predicted_high),x.status].forEach(v=>tr.append(cell("td",v)));ft.append(tr)});
+const ot=document.getElementById("outcomes");ot.replaceChildren();[...o].reverse().slice(0,50).forEach(x=>{const tr=cell("tr","");[x.forecast_id,x.target_session,fmt(x.realized_close),pct(x.realized_return),String(x.direction_correct),pct(x.absolute_return_error)].forEach(v=>tr.append(cell("td",v)));ot.append(tr)});
+document.getElementById("outcome-summary").textContent=o.length+" one-time matured outcome records. Scores are descriptive and do not establish profitability.";
+}catch(e){document.getElementById("run-status").textContent="Dashboard data unavailable";document.getElementById("run-detail").textContent=String(e)}}
+load();
+</script></body></html>
