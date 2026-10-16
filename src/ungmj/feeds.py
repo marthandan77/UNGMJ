@@ -208,7 +208,10 @@ def fetch_ung_sources() -> tuple[FetchedFrame, FetchedFrame]:
     """Fetch both candidate sources; no single-source fallback is allowed."""
     errors: list[str] = []
     results: list[FetchedFrame] = []
-    for fetcher in (fetch_yahoo_ung, fetch_stooq_ung):
+    from .nasdaq import fetch_nasdaq_ung
+    for fetcher in (fetch_yahoo_ung, fetch_nasdaq_ung, fetch_stooq_ung):
+        if len(results) >= 2:
+            break
         try:
             results.append(fetcher())
         except Exception as exc:
