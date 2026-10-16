@@ -83,7 +83,8 @@ def vintage(fid: str, as_of: datetime, horizon: int = 1) -> ForecastVintage:
         forecast_id=fid, instrument="UNG", as_of=as_of, origin_session=as_of.date(), horizon_sessions=horizon,
         reference_close=20, probability_up=0.6, expected_return=0.01, expected_close=20.2,
         predicted_low=19, predicted_high=22, lower_return_quantile=-0.1,
-        upper_return_quantile=0.1, model_name="ridge", model_version="0.1.0",
+        upper_return_quantile=0.1, calibration_sample_count=50,
+        calibration_method="purged_walk_forward_residuals", model_name="ridge", model_version="0.1.0",
         input_fingerprint="a" * 64,
     )
 
