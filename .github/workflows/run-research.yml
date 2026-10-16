@@ -1,5 +1,7 @@
 name: UNG Research Run
 on:
+  push:
+    branches: ["build/**"]
   schedule:
     - cron: "30 2 * * 2-6"
   workflow_dispatch:
