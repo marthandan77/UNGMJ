@@ -156,55 +156,81 @@ def fetch_eia_henry_hub_spot(api_key: str | None = None) -> tuple[pd.DataFrame, 
         except Exception as exc:
             raise DataValidationError(f"Could not download/parse official EIA workbook: {exc}") from exc
         import re
-        weekday_names = ("mon", "tue", "wed", "thu", "fri")
-        header_row = None
-        week_col = None
-        weekday_cols: dict[str, int] = {}
+        observations: list[tuple[datetime, float]] = []
+        date_header = None
+        date_col = None
+        value_col = None
         for row_index, row in workbook.iterrows():
             values = [str(value).replace(chr(160), " ").strip().lower() for value in row.tolist()]
-            if "week of" in values:
-                header_row = row_index
-                week_col = values.index("week of")
-                for weekday in weekday_names:
-                    if weekday in values:
-                        weekday_cols[weekday] = values.index(weekday)
-                if len(weekday_cols) == 5:
+            if "date" in values:
+                candidate_date = values.index("date")
+                candidates = [i for i, value in enumerate(values) if i != candidate_date and "henry hub" in value]
+                if candidates:
+                    date_header, date_col, value_col = row_index, candidate_date, candidates[0]
                     break
-        if header_row is None or week_col is None or len(weekday_cols) != 5:
+        # Current EIA XLS layout is a simple Date/value table. Parse it first.
+        if date_header is not None and date_col is not None and value_col is not None:
+            for _, row in workbook.iloc[date_header + 1:].iterrows():
+                session = pd.to_datetime(row.iloc[date_col], errors="coerce")
+                value = pd.to_numeric(
+                    str(row.iloc[value_col]).replace("$", "").replace(",", "").strip(),
+                    errors="coerce",
+                )
+                if pd.isna(session) or pd.isna(value):
+                    continue
+                observations.append((pd.Timestamp(session).to_pydatetime(), float(value)))
+        # Keep compatibility with older EIA workbook versions that use a weekly grid.
+        if len(observations) < 1000:
+            observations = []
+            weekday_names = ("mon", "tue", "wed", "thu", "fri")
+            header_row = None
+            week_col = None
+            weekday_cols: dict[str, int] = {}
+            for row_index, row in workbook.iterrows():
+                values = [str(value).replace(chr(160), " ").strip().lower() for value in row.tolist()]
+                if "week of" in values:
+                    header_row = row_index
+                    week_col = values.index("week of")
+                    for weekday in weekday_names:
+                        if weekday in values:
+                            weekday_cols[weekday] = values.index(weekday)
+                    if len(weekday_cols) == 5:
+                        break
+            if header_row is not None and week_col is not None and len(weekday_cols) == 5:
+                month_numbers = {
+                    "jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6,
+                    "jul": 7, "aug": 8, "sep": 9, "oct": 10, "nov": 11, "dec": 12,
+                }
+                pattern = re.compile(
+                    r"(?P<year>\\d{4})\\s+(?P<month>[A-Za-z]{3})-\\s*(?P<day>\\d{1,2})\\s+to\\s+"
+                    r"(?P<end_month>[A-Za-z]{3})-\\s*(?P<end_day>\\d{1,2})",
+                    flags=re.IGNORECASE,
+                )
+                for _, row in workbook.iloc[header_row + 1:].iterrows():
+                    match = pattern.search(str(row.iloc[week_col]).replace(chr(160), " ").strip())
+                    if not match:
+                        continue
+                    year = int(match.group("year"))
+                    month = month_numbers.get(match.group("month").lower())
+                    if month is None:
+                        continue
+                    week_start = datetime(year, month, int(match.group("day")))
+                    for day_offset, weekday in enumerate(weekday_names):
+                        raw_value = str(row.iloc[weekday_cols[weekday]]).replace("$", "").replace(",", "").strip()
+                        value = pd.to_numeric(raw_value, errors="coerce")
+                        if pd.isna(value):
+                            continue
+                        session = week_start + pd.Timedelta(days=day_offset)
+                        observations.append((pd.Timestamp(session).to_pydatetime(), float(value)))
+        if not observations:
             sample = workbook.head(10).fillna("").astype(str).to_dict(orient="records")
             raise DataValidationError(
-                f"EIA workbook weekly header not recognized; shape={workbook.shape}; sample={sample}"
+                f"EIA workbook daily/weekly layout not recognized; shape={workbook.shape}; sample={sample}"
             )
-        month_numbers = {
-            "jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6,
-            "jul": 7, "aug": 8, "sep": 9, "oct": 10, "nov": 11, "dec": 12,
-        }
-        pattern = re.compile(
-            r"(?P<year>\d{4})\s+(?P<month>[A-Za-z]{3})-\s*(?P<day>\d{1,2})\s+to\s+"
-            r"(?P<end_month>[A-Za-z]{3})-\s*(?P<end_day>\d{1,2})",
-            flags=re.IGNORECASE,
-        )
-        observations: list[tuple[datetime, float]] = []
-        for _, row in workbook.iloc[header_row + 1:].iterrows():
-            match = pattern.search(str(row.iloc[week_col]).replace(chr(160), " ").strip())
-            if not match:
-                continue
-            year = int(match.group("year"))
-            month = month_numbers.get(match.group("month").lower())
-            if month is None:
-                continue
-            week_start = datetime(year, month, int(match.group("day")))
-            for day_offset, weekday in enumerate(weekday_names):
-                raw_value = str(row.iloc[weekday_cols[weekday]]).replace("$", "").replace(",", "").strip()
-                value = pd.to_numeric(raw_value, errors="coerce")
-                if pd.isna(value):
-                    continue
-                session = week_start + pd.Timedelta(days=day_offset)
-                observations.append((pd.Timestamp(session).to_pydatetime(), float(value)))
-        if not observations:
-            raise DataValidationError("EIA workbook contains no parseable daily Henry Hub observations")
         frame = pd.DataFrame(observations, columns=["session", "henry_hub_spot"]).set_index("session").sort_index()
         frame.index = pd.DatetimeIndex(frame.index).normalize()
+        if frame.index.has_duplicates:
+            raise DataValidationError("EIA workbook contains duplicate daily sessions")
         if len(frame) < 1000:
             raise DataValidationError(f"EIA workbook parsed only {len(frame)} daily observations")
         raw = "[binary EIA XLS workbook; SHA-256 recorded from exact downloaded bytes]"
