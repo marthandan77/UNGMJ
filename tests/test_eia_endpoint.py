@@ -28,8 +28,8 @@ def test_eia_api_uses_spot_dataset_and_parses_daily_history(monkeypatch) -> None
     frame, snapshot, _ = feeds.fetch_eia_henry_hub_spot()
 
     assert requested
-    assert "/natural-gas/pri/spt/data/" in requested[0]
-    assert "/natural-gas/pri/fut/data/" not in requested[0]
+    assert "/natural-gas/pri/fut/data/" in requested[0]
+    assert "facets%5Bseries%5D%5B%5D=RNGWHHD" in requested[0] or "facets[series][]=RNGWHHD" in requested[0]
     assert len(frame) == 1100
     assert frame.index.is_monotonic_increasing
     assert frame["henry_hub_spot"].gt(0).all()
