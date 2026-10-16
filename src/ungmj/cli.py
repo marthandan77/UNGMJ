@@ -16,6 +16,7 @@ from .evaluation import evaluate_strategies_and_features, summarize_evaluation
 from .feeds import fetch_eia_henry_hub_spot, fetch_ung_sources, latest_session_agreement
 from .ledger import ForecastLedger
 from .model import fit_and_forecast, walk_forward_predictions
+from .timing import validate_forecast_timing
 
 LOG = logging.getLogger("ungmj")
 
@@ -32,6 +33,7 @@ def run_once(output_dir: str = "data/ledger") -> dict[str, object]:
                 raise DataValidationError(agreement_note)
         gas, gas_snapshot, _ = fetch_eia_henry_hub_spot()
         ung = first.frame
+        validate_forecast_timing(ung.index[-1].date(), now)
         # Henry Hub is explanatory only and conservatively lagged by feature builder.
         features = build_features(ung, gas)
         latest_features = features.iloc[[-1]]
