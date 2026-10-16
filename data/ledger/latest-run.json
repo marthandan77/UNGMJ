@@ -745,5 +745,8 @@
   "status": "PROVISIONAL",
   "uncertainty_status": "Return intervals use purged walk-forward residuals when at least 50 are available; high-low range calibration and coverage review remain outstanding.",
   "ung_first_session": "2016-10-17",
-  "ung_history_rows": 2513
+  "ung_history_rows": 2513,
+  "valid_forecasts_emitted": 0,
+  "invalidated_forecasts_in_run": 4,
+  "run_validity_note": "All four forecasts from this validation run were invalidated because issuance occurred after the target session had opened. They remain in the immutable ledger and are excluded from scoring."
 }
