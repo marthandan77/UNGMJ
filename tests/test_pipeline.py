@@ -104,3 +104,19 @@ def test_ledger_scores_matured_vintage_once(tmp_path) -> None:
     now = datetime(2026, 1, 7, 12, tzinfo=timezone.utc)
     assert ledger.score_matured(frame, now=now) == 1
     assert ledger.score_matured(frame, now=now) == 0
+
+
+def test_strategy_and_feature_ablation_evaluation_is_out_of_sample() -> None:
+    from ungmj.evaluation import evaluate_strategies_and_features, summarize_evaluation
+
+    frame = bars(150)
+    features = build_features(frame)
+    targets = build_forward_targets(frame, 1)
+    results = evaluate_strategies_and_features(
+        features, targets, horizon_sessions=1, min_train_rows=50, step=20, rolling_window=80
+    )
+    summaries = summarize_evaluation(results)
+    assert len(results) > 0
+    assert {"expanding", "rolling", "recency_weighted"} == set(results["strategy"])
+    assert "all" in set(results["feature_group"])
+    assert all(0 <= item["directional_accuracy"] <= 1 for item in summaries)
