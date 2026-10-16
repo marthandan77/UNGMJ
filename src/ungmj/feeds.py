@@ -100,11 +100,11 @@ def fetch_eia_henry_hub_spot(api_key: str | None = None) -> tuple[pd.DataFrame, 
     if key:
         params = [
             ("api_key", key), ("frequency", "daily"), ("data[0]", "value"),
-            ("facets[process][]", "RNGWHHD"), ("start", "1997-01-01"),
+            ("facets[series][]", "RNGWHHD"), ("start", "1997-01-01"),
             ("sort[0][column]", "period"), ("sort[0][direction]", "asc"),
             ("offset", "0"), ("length", "50000"),
         ]
-        url = "https://api.eia.gov/v2/natural-gas/pri/spt/data/?" + urllib.parse.urlencode(params)
+        url = "https://api.eia.gov/v2/natural-gas/pri/fut/data/?" + urllib.parse.urlencode(params)
         raw = _get(url)
         try:
             payload = json.loads(raw)
