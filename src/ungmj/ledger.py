@@ -101,6 +101,7 @@ class ForecastLedger:
             outcomes.append({
                 "forecast_id": fid,
                 "model_name": str(forecast.get("model_name", "unknown")),
+                "model_version": str(forecast.get("model_version", "unknown")),
                 "horizon_sessions": horizon,
                 "scored_at": now.astimezone(timezone.utc).isoformat(),
                 "target_session": target_session.date().isoformat(),
