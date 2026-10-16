@@ -83,8 +83,10 @@ def evaluate_strategies_and_features(
                     "predicted_return": prediction,
                     "actual_return": actual,
                     "predicted_up": prediction > 0,
+                    "naive_predicted_up": float(features.loc[joined.index[test_i]].get("return_1", 0.0)) > 0,
                     "actual_up": actual > 0,
                     "absolute_error": abs(prediction - actual),
+                    "zero_return_absolute_error": abs(actual),
                 })
     if not rows:
         raise DataValidationError(
@@ -112,7 +114,11 @@ def summarize_evaluation(results: pd.DataFrame) -> list[dict[str, object]]:
             "feature_group": str(group),
             "n": int(len(frame)),
             "directional_accuracy": float((frame["predicted_up"] == frame["actual_up"]).mean()),
+            "naive_directional_accuracy": float(
+                (frame["naive_predicted_up"] == frame["actual_up"]).mean()
+            ),
             "mae": float(frame["absolute_error"].mean()),
+            "zero_return_mae": float(frame["zero_return_absolute_error"].mean()),
             "mean_predicted_return": float(frame["predicted_return"].mean()),
             "mean_actual_return": float(frame["actual_return"].mean()),
         })
