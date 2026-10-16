@@ -1,0 +1,63 @@
+name: Manual Public Feed Scan
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: manual-public-feed-scan
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    name: Probe public data sources
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out selected branch
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Scan public endpoints
+        id: scan
+        run: python tools/feed_probe.py
+
+      - name: Add results to run summary
+        if: always()
+        run: |
+          if [ -f artifacts/feed-probe.json ]; then
+            python - <<'PY'
+            import json
+            from pathlib import Path
+            report = json.loads(Path("artifacts/feed-probe.json").read_text())
+            with open(__import__("os").environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as out:
+                out.write("# Manual public feed scan\n\n")
+                out.write(f'Generated (UTC): {report["generated_at_utc"]}\n\n')
+                out.write("| Provider | Result | Rows | Latest date |\n|---|---:|---:|---|\n")
+                for item in report["results"]:
+                    out.write(f'| {item["provider"]} | **{item["status"]}** | {item.get("row_count", "n/a")} | {item.get("latest_date", "n/a")} |\n')
+                out.write("\n## Checks\n")
+                for item in report["results"]:
+                    out.write(f'\n### {item["provider"]}\n')
+                    for check in item.get("checks", []):
+                        out.write(f'- {"PASS" if check.get("pass") else "FAIL"} — {check["name"]}: {check.get("detail", "")}\n')
+                out.write("\n> Candidate probe only. No feed is automatically approved for production. Inspect the JSON artifact and verify licensing, stability, historical completeness, and point-in-time behavior before use.\n")
+            PY
+          else
+            echo "Probe did not produce a report file." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload machine-readable report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: public-feed-scan-report
+          path: artifacts/feed-probe.json
+          if-no-files-found: warn
+          retention-days: 14
