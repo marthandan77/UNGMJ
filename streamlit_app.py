@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import base64
+import hmac
 import json
 import os
 import urllib.error
@@ -160,32 +161,43 @@ m3.metric("Valid forecasts this run", str(report.get("valid_forecasts_emitted", 
 m4.metric("Matured outcomes", str(len(outcomes)))
 
 st.subheader("Model processing settings")
-st.caption("These controls govern the next scheduled research run. Turning a model off does not delete its forecast history or matured scores.")
+st.caption("These controls govern the next scheduled research run. Turning a model off does not delete its historical forecasts or matured scores.")
 try:
     config = load_json("model-config.json")
 except Exception:
     config = {"enabled_models": list(MODEL_OPTIONS)}
 enabled_now = [key for key in config.get("enabled_models", list(MODEL_OPTIONS)) if key in MODEL_OPTIONS]
-with st.form("model_settings_form"):
-    enabled_selected = st.multiselect(
-        "Models enabled for the next run",
-        options=list(MODEL_OPTIONS),
-        default=enabled_now,
-        format_func=lambda key: MODEL_OPTIONS[key],
-        help="Every enabled model issues its own forecast. Models are not averaged together.",
-    )
-    save_settings = st.form_submit_button("Save model settings")
-if save_settings:
-    try:
-        save_model_config(enabled_selected)
-        load_json.clear()
-        st.success("Settings saved to the research-state ledger. They apply on the next scheduled run.")
-        st.rerun()
-    except Exception as exc:
-        st.error(str(exc))
-        st.warning("Settings were not saved; the processing configuration has not changed.")
-if not (os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")):
-    st.info("Settings are read-only until a repository-scoped GITHUB_TOKEN or GH_TOKEN secret with Contents: write access is configured on the Render service.")
+admin_password = os.environ.get("DASHBOARD_ADMIN_PASSWORD")
+github_token_available = bool(os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN"))
+if not admin_password:
+    st.info("Model settings are read-only. Configure DASHBOARD_ADMIN_PASSWORD and a repository-scoped GITHUB_TOKEN or GH_TOKEN secret on Render to enable authenticated controls.")
+else:
+    with st.form("model_admin_login"):
+        entered_password = st.text_input("Administrator password", type="password")
+        login_submit = st.form_submit_button("Unlock model settings")
+    if login_submit:
+        st.session_state["ungmj_admin_authenticated"] = hmac.compare_digest(entered_password, admin_password)
+    if st.session_state.get("ungmj_admin_authenticated", False) and github_token_available:
+        with st.form("model_settings_form"):
+            enabled_selected = st.multiselect(
+                "Models enabled for the next run",
+                options=list(MODEL_OPTIONS),
+                default=enabled_now,
+                format_func=lambda key: MODEL_OPTIONS[key],
+                help="Every enabled model issues its own forecast. Models are not averaged together.",
+            )
+            save_settings = st.form_submit_button("Save model settings")
+        if save_settings:
+            try:
+                save_model_config(enabled_selected)
+                load_json.clear()
+                st.success("Settings saved to the research-state ledger. They apply on the next scheduled run.")
+                st.rerun()
+            except Exception as exc:
+                st.error(str(exc))
+                st.warning("Settings were not saved; the processing configuration has not changed.")
+    elif not github_token_available:
+        st.warning("The administrator gate is configured, but persistent writes are unavailable until GITHUB_TOKEN or GH_TOKEN is configured.")
 
 st.subheader("Model competition")
 scored_rows = []
