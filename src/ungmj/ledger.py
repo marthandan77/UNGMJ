@@ -20,6 +20,7 @@ class ForecastLedger:
         self.root.mkdir(parents=True, exist_ok=True)
         self.forecasts_path = self.root / "forecasts.jsonl"
         self.outcomes_path = self.root / "outcomes.jsonl"
+        self.invalidations_path = self.root / "invalidations.jsonl"
 
     @staticmethod
     def _read_ids(path: Path, field: str) -> set[str]:
@@ -41,18 +42,40 @@ class ForecastLedger:
         payload["origin_session"] = forecast.origin_session.isoformat()
         self._append(self.forecasts_path, payload)
 
+    def append_invalidation(
+        self, forecast_id: str, reason: str, *, now: datetime | None = None
+    ) -> None:
+        """Append an audit invalidation without mutating the immutable forecast vintage."""
+        if not reason.strip():
+            raise DataValidationError("invalidation reason must not be blank")
+        forecast_ids = self._read_ids(self.forecasts_path, "forecast_id")
+        if forecast_id not in forecast_ids:
+            raise DataValidationError(f"cannot invalidate unknown forecast_id: {forecast_id}")
+        invalidated = self._read_ids(self.invalidations_path, "forecast_id")
+        if forecast_id in invalidated:
+            return
+        timestamp = now or datetime.now(timezone.utc)
+        if timestamp.tzinfo is None or timestamp.utcoffset() is None:
+            raise DataValidationError("invalidation timestamp must be timezone-aware")
+        self._append(self.invalidations_path, {
+            "forecast_id": forecast_id,
+            "invalidated_at": timestamp.astimezone(timezone.utc).isoformat(),
+            "reason": reason.strip(),
+        })
+
     def score_matured(self, bars: pd.DataFrame, *, now: datetime | None = None) -> int:
         """Score vintages only after the target horizon has elapsed; each ID scored once."""
         if not self.forecasts_path.exists():
             return 0
         now = now or datetime.now(timezone.utc)
         existing = self._read_ids(self.outcomes_path, "forecast_id")
+        invalidated = self._read_ids(self.invalidations_path, "forecast_id")
         outcomes: list[dict[str, object]] = []
         forecasts = [json.loads(line) for line in self.forecasts_path.read_text().splitlines() if line.strip()]
         sessions = pd.DatetimeIndex(pd.to_datetime(bars.index)).normalize()
         for forecast in forecasts:
             fid = forecast["forecast_id"]
-            if fid in existing:
+            if fid in existing or fid in invalidated:
                 continue
             origin_session = pd.Timestamp(forecast["origin_session"]).normalize()
             eligible = sessions[sessions > origin_session]
