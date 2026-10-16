@@ -228,6 +228,42 @@ if scored_rows:
 else:
     st.info("Model competition scores will appear after forecast horizons mature. Existing forecasts are preserved for audit and later scoring.")
 
+st.subheader("Five-session price range")
+st.caption("Your requested Monday–Friday view: the next five trading sessions after the forecast origin. The range is a model-estimated low-to-high trading-price band, not a guaranteed floor or ceiling.")
+five_session = [
+    row for row in visible_forecasts
+    if int(row.get("horizon_sessions", 0) or 0) == 5
+    and row.get("status") != "VOID"
+    and row.get("predicted_low") is not None
+    and row.get("predicted_high") is not None
+]
+if five_session:
+    latest_origin = max(str(row.get("origin_session", "")) for row in five_session)
+    latest_five = [row for row in five_session if str(row.get("origin_session", "")) == latest_origin]
+    latest_five.sort(key=lambda row: str(row.get("model_name", "")))
+    st.write("Forecast origin session:", latest_origin)
+    st.dataframe(
+        [
+            {
+                "Model": MODEL_OPTIONS.get(str(row.get("model_name", "")), row.get("model_name", "Unknown")),
+                "Forecast issued (UTC)": row.get("as_of"),
+                "Start price ($)": round(float(row["reference_close"]), 2),
+                "Lowest estimated price ($)": round(float(row["predicted_low"]), 2),
+                "Highest estimated price ($)": round(float(row["predicted_high"]), 2),
+                "5-session range ($)": f"${float(row['predicted_low']):.2f} – ${float(row['predicted_high']):.2f}",
+                "Historical calibration samples": row.get("calibration_sample_count", 0),
+                "Calibration method": row.get("calibration_method", "not recorded"),
+                "Status": row.get("status", "Not specified"),
+            }
+            for row in latest_five
+        ],
+        use_container_width=True,
+        hide_index=True,
+    )
+    st.caption("Compare the range separately for each model; models are not averaged. The current range method uses historical forward-low/high distributions, so it should be treated as provisional until out-of-sample coverage is validated.")
+else:
+    st.info("No valid five-session forecast is available yet. The next scheduled run should create one when the market data and timing checks pass.")
+
 st.subheader("Forecast history")
 st.caption(
     "A record of the predictions the system made. We keep older predictions so we can "
