@@ -62,7 +62,7 @@ def run_once(output_dir: str = "data/ledger") -> dict[str, object]:
                 "enabled_models": enabled_models,
                 "updated_at": now.isoformat(),
                 "note": "Initial all-model shadow competition configuration; no model has trading authority."
-            }, indent=2, sort_keys=True) + "\\n", encoding="utf-8")
+            }, indent=2, sort_keys=True) + "\n", encoding="utf-8")
         model_statuses = []
         specs_by_key = {spec.key: spec for spec in MODEL_REGISTRY}
         for model_key in enabled_models:
