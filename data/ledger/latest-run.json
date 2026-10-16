@@ -22,7 +22,7 @@
         "horizon_sessions": 1,
         "mae": 0.024819829026636046,
         "mean_actual_return": 0.00017063501980756125,
-        "mean_predicted_return": -5.318289175672309e-05,
+        "mean_predicted_return": -0.00005318289175672309,
         "n": 121,
         "strategy": "expanding"
       },
@@ -82,7 +82,7 @@
         "horizon_sessions": 1,
         "mae": 0.024822724305087175,
         "mean_actual_return": 0.00017063501980756125,
-        "mean_predicted_return": -3.143036763792243e-06,
+        "mean_predicted_return": -0.000003143036763792243,
         "n": 121,
         "strategy": "recency_weighted"
       },
@@ -142,7 +142,7 @@
         "horizon_sessions": 1,
         "mae": 0.02475104540403819,
         "mean_actual_return": 0.00017063501980756125,
-        "mean_predicted_return": 1.6757563349862872e-05,
+        "mean_predicted_return": 0.000016757563349862872,
         "n": 121,
         "strategy": "rolling"
       },
@@ -262,7 +262,7 @@
         "horizon_sessions": 2,
         "mae": 0.041357761963293965,
         "mean_actual_return": 0.0020399111269510245,
-        "mean_predicted_return": 7.202613330508621e-05,
+        "mean_predicted_return": 0.00007202613330508621,
         "n": 121,
         "strategy": "recency_weighted"
       },
@@ -736,7 +736,7 @@
   "latest_ung_session": "2026-10-15",
   "note": "Research output only; not investment advice or a trading instruction.",
   "outcomes_scored": 0,
-  "provider_agreement": "PROVISIONAL: only Yahoo UNG history is available; independent confirmation unavailable",
+  "provider_agreement": "PROVISIONAL: only Nasdaq UNG OHLCV history was usable in this run; independent confirmation unavailable.",
   "run_at": "2026-10-16T14:38:55.653874+00:00",
   "source_providers": [
     "nasdaq",
