@@ -112,6 +112,20 @@ def test_ledger_scores_matured_vintage_once(tmp_path) -> None:
     assert ledger.score_matured(frame, now=now) == 0
 
 
+def test_invalidated_forecast_is_never_scored(tmp_path) -> None:
+    ledger = ForecastLedger(tmp_path)
+    issued = datetime(2026, 1, 5, 22, tzinfo=timezone.utc)
+    ledger.append_forecast(vintage("void-me", issued, horizon=1))
+    ledger.append_invalidation(
+        "void-me",
+        "Validation-only vintage issued from an incomplete current-day bar",
+        now=datetime(2026, 1, 6, tzinfo=timezone.utc),
+    )
+    frame = pd.DataFrame({"close": [20.0, 21.0]}, index=pd.to_datetime(["2026-01-05", "2026-01-06"]))
+    assert ledger.score_matured(frame, now=datetime(2026, 1, 7, tzinfo=timezone.utc)) == 0
+    assert ledger.invalidations_path.exists()
+
+
 def test_strategy_and_feature_ablation_evaluation_is_out_of_sample() -> None:
     from ungmj.evaluation import evaluate_strategies_and_features, summarize_evaluation
 
