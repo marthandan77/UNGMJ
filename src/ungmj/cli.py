@@ -11,6 +11,7 @@ from pathlib import Path
 
 from .contracts import DataValidationError, ForecastVintage
 from .features import build_features, build_forward_targets
+from .evaluation import evaluate_strategies_and_features, summarize_evaluation
 from .feeds import fetch_eia_henry_hub_spot, fetch_ung_sources, latest_session_agreement
 from .ledger import ForecastLedger
 from .model import fit_and_forecast
@@ -71,6 +72,33 @@ def run_once(output_dir: str = "data/ledger") -> dict[str, object]:
             ledger.append_forecast(vintage)
             emitted += 1
         scored = ledger.score_matured(ung, now=now)
+        evaluation_report: dict[str, object] = {"status": "BLOCKED", "reason": "Not yet evaluated"}
+        try:
+            evaluation_rows = []
+            for eval_horizon in (1, 2, 3, 5):
+                eval_targets = build_forward_targets(ung, eval_horizon)
+                horizon_rows = evaluate_strategies_and_features(
+                    features, eval_targets, horizon_sessions=eval_horizon,
+                    min_train_rows=250, step=20,
+                )
+                evaluation_rows.extend(horizon_rows.to_dict(orient="records"))
+            evaluation_frame = pd.DataFrame(evaluation_rows)
+            evaluation_report = {
+                "status": "COMPLETE",
+                "method": "chronological walk-forward with purged horizon labels",
+                "summaries": summarize_evaluation(evaluation_frame),
+                "automatic_promotion": False,
+            }
+        except Exception as eval_exc:
+            evaluation_report = {
+                "status": "BLOCKED",
+                "error_type": type(eval_exc).__name__,
+                "error": str(eval_exc)[:500],
+                "automatic_promotion": False,
+            }
+        Path(output_dir, "evaluation.json").write_text(
+            json.dumps(evaluation_report, indent=2, sort_keys=True) + "\\n"
+        )
         report = {
             "run_at": now.isoformat(),
             "status": "PROVISIONAL",
@@ -79,6 +107,7 @@ def run_once(output_dir: str = "data/ledger") -> dict[str, object]:
             "provider_agreement": agreement_note,
             "forecasts_emitted": emitted,
             "outcomes_scored": scored,
+            "evaluation": evaluation_report,
             "source_providers": [first.snapshot.provider, second.snapshot.provider, gas_snapshot.provider],
             "uncertainty_status": "UNCALIBRATED; provisional until chronological out-of-sample calibration passes",
             "note": "Research output only; not investment advice or a trading instruction.",
