@@ -83,9 +83,29 @@ def run_once(output_dir: str = "data/ledger") -> dict[str, object]:
                         oof["actual_return"].to_numpy(dtype=float) - oof["predicted_return"].to_numpy(dtype=float)
                         if len(oof) >= 50 else None
                     )
+                    # Calibrate low/high bounds only from matured, genuinely out-of-sample
+                    # forecasts produced by this range-model version and same horizon.
+                    range_calibration = pd.DataFrame()
+                    if ledger.outcomes_path.exists():
+                        try:
+                            historical_outcomes = pd.read_json(ledger.outcomes_path, lines=True)
+                            if not historical_outcomes.empty:
+                                range_calibration = historical_outcomes.loc[
+                                    (historical_outcomes.get("model_name") == model_key)
+                                    & (historical_outcomes.get("model_version") == "0.2.0")
+                                    & (pd.to_numeric(historical_outcomes.get("horizon_sessions"), errors="coerce") == horizon)
+                                ].dropna(subset=["low_range_error", "high_range_error"])
+                        except (ValueError, KeyError, TypeError):
+                            # A malformed historical calibration ledger must not crash other models;
+                            # it simply means no usable calibration sample is available this run.
+                            range_calibration = pd.DataFrame()
                     forecast = fit_model_forecast(
                         model_key, features, train_targets, float(ung.iloc[-1]["close"]),
                         min_train_rows=100, calibration_residuals=calibration_residuals,
+                        calibration_low_errors=(range_calibration["low_range_error"].to_numpy(dtype=float)
+                                                if not range_calibration.empty else None),
+                        calibration_high_errors=(range_calibration["high_range_error"].to_numpy(dtype=float)
+                                                 if not range_calibration.empty else None),
                     )
                     secondary_hash = second.snapshot.content_sha256 if second is not None else "NO_SECONDARY_PROVIDER"
                     fingerprint = hashlib.sha256(
