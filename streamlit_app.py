@@ -1,9 +1,7 @@
-"""Password-gated Streamlit dashboard for UNGMJ private-use research."""
+"""Public read-only Streamlit dashboard for UNGMJ research."""
 from __future__ import annotations
 
-import hmac
 import json
-import os
 import urllib.error
 import urllib.request
 from typing import Any
@@ -44,27 +42,8 @@ def load_jsonl(path: str) -> list[dict[str, Any]]:
     return [json.loads(line) for line in raw.splitlines() if line.strip()]
 
 
-def require_password() -> None:
-    expected = os.environ.get("APP_PASSWORD", "")
-    if not expected:
-        st.error("Dashboard is locked: APP_PASSWORD is not configured on the host.")
-        st.stop()
-    if st.session_state.get("authenticated") is True:
-        return
-    st.title("UNGMJ research dashboard (password protected)")
-    st.caption("Password required. Research output only; not investment advice.")
-    supplied = st.text_input("Access password", type="password")
-    if st.button("Unlock dashboard", type="primary"):
-        if hmac.compare_digest(supplied, expected):
-            st.session_state["authenticated"] = True
-            st.rerun()
-        else:
-            st.error("Incorrect password.")
-    st.stop()
-
 
 st.set_page_config(page_title="UNGMJ Research", page_icon="📈", layout="wide")
-require_password()
 
 st.title("UNGMJ — UNG ETF research forecasts")
 st.caption(
