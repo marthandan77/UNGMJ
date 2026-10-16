@@ -4,6 +4,7 @@ from __future__ import annotations
 import hmac
 import json
 import os
+import urllib.error
 import urllib.request
 from typing import Any
 
@@ -34,11 +35,13 @@ def load_json(path: str) -> dict[str, Any]:
 
 @st.cache_data(ttl=300, show_spinner=False)
 def load_jsonl(path: str) -> list[dict[str, Any]]:
-    return [
-        json.loads(line)
-        for line in fetch_text(path).splitlines()
-        if line.strip()
-    ]
+    try:
+        raw = fetch_text(path)
+    except urllib.error.HTTPError as exc:
+        if exc.code == 404:
+            return []
+        raise
+    return [json.loads(line) for line in raw.splitlines() if line.strip()]
 
 
 def require_password() -> None:
