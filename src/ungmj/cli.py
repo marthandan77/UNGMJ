@@ -15,7 +15,8 @@ from .features import build_features, build_forward_targets
 from .evaluation import evaluate_strategies_and_features, summarize_evaluation
 from .feeds import fetch_eia_henry_hub_spot, fetch_ung_sources, latest_session_agreement
 from .ledger import ForecastLedger
-from .model import fit_and_forecast, walk_forward_predictions
+from .model import walk_forward_predictions
+from .model_registry import MODEL_REGISTRY, fit_model_forecast
 from .timing import validate_forecast_timing
 
 LOG = logging.getLogger("ungmj")
@@ -41,54 +42,86 @@ def run_once(output_dir: str = "data/ledger") -> dict[str, object]:
             raise DataValidationError("Latest feature row is entirely missing")
         ledger = ForecastLedger(output_dir)
         emitted = 0
-        for horizon in (1, 2, 3, 5):
-            targets = build_forward_targets(ung, horizon)
-            # The training label is truncated before the current feature row.
-            # A label is eligible only if its entire forward horizon ended before the latest session.
-            last_eligible = ung.index[-(horizon + 1)]
-            train_targets = targets.loc[targets.index <= last_eligible]
-            oof = walk_forward_predictions(
-                features, targets, min_train_rows=100, step=10, horizon_sessions=horizon
-            )
-            calibration_residuals = (
-                oof["actual_return"].to_numpy(dtype=float) - oof["predicted_return"].to_numpy(dtype=float)
-                if len(oof) >= 50 else None
-            )
-            forecast = fit_and_forecast(
-                features,
-                train_targets,
-                float(ung.iloc[-1]["close"]),
-                min_train_rows=100,
-                calibration_residuals=calibration_residuals,
-            )
-            secondary_hash = second.snapshot.content_sha256 if second is not None else "NO_SECONDARY_PROVIDER"
-            fingerprint = hashlib.sha256(
-                (first.snapshot.content_sha256 + secondary_hash + gas_snapshot.content_sha256
-                 + str(latest_features.index[0]) + str(horizon)).encode()
-            ).hexdigest()
-            vintage = ForecastVintage(
-                forecast_id=f"UNG-{latest_features.index[0].date().isoformat()}T{now.strftime('%H%M%S')}-{horizon}D-{fingerprint[:12]}",
-                instrument="UNG",
-                as_of=now,
-                origin_session=latest_features.index[0].date(),
-                horizon_sessions=horizon,
-                reference_close=float(ung.iloc[-1]["close"]),
-                probability_up=forecast.probability_up,
-                expected_return=forecast.expected_return,
-                expected_close=forecast.expected_close,
-                predicted_low=forecast.predicted_low,
-                predicted_high=forecast.predicted_high,
-                lower_return_quantile=forecast.lower_return_quantile,
-                upper_return_quantile=forecast.upper_return_quantile,
-                calibration_sample_count=forecast.calibration_sample_count,
-                calibration_method=forecast.calibration_method,
-                model_name=forecast.model_name,
-                model_version=forecast.model_version,
-                input_fingerprint=fingerprint,
-                status="PROVISIONAL",
-            )
-            ledger.append_forecast(vintage)
-            emitted += 1
+        config_path = Path(output_dir, "model-config.json")
+        default_enabled = [spec.key for spec in MODEL_REGISTRY]
+        if config_path.exists():
+            try:
+                model_config = json.loads(config_path.read_text(encoding="utf-8"))
+                enabled_models = model_config.get("enabled_models", default_enabled)
+                if not isinstance(enabled_models, list) or not all(isinstance(key, str) for key in enabled_models):
+                    raise ValueError("enabled_models must be a list of model keys")
+                unknown = sorted(set(enabled_models) - {spec.key for spec in MODEL_REGISTRY})
+                if unknown:
+                    raise ValueError(f"Unknown enabled model keys: {unknown}")
+            except Exception as config_exc:
+                raise DataValidationError(f"Invalid model-config.json: {config_exc}") from config_exc
+        else:
+            enabled_models = default_enabled
+            config_path.write_text(json.dumps({
+                "schema_version": 1,
+                "enabled_models": enabled_models,
+                "updated_at": now.isoformat(),
+                "note": "Initial all-model shadow competition configuration; no model has trading authority."
+            }, indent=2, sort_keys=True) + "\\n", encoding="utf-8")
+        model_statuses = []
+        specs_by_key = {spec.key: spec for spec in MODEL_REGISTRY}
+        for model_key in enabled_models:
+            spec = specs_by_key[model_key]
+            try:
+                if spec.requires:
+                    __import__(spec.requires)
+                model_forecasts = 0
+                for horizon in (1, 2, 3, 5):
+                    targets = build_forward_targets(ung, horizon)
+                    last_eligible = ung.index[-(horizon + 1)]
+                    train_targets = targets.loc[targets.index <= last_eligible]
+                    # OOF residual calibration is currently established for the Ridge baseline only.
+                    oof = walk_forward_predictions(
+                        features, targets, min_train_rows=100, step=10, horizon_sessions=horizon
+                    ) if model_key == "ridge" else pd.DataFrame()
+                    calibration_residuals = (
+                        oof["actual_return"].to_numpy(dtype=float) - oof["predicted_return"].to_numpy(dtype=float)
+                        if len(oof) >= 50 else None
+                    )
+                    forecast = fit_model_forecast(
+                        model_key, features, train_targets, float(ung.iloc[-1]["close"]),
+                        min_train_rows=100, calibration_residuals=calibration_residuals,
+                    )
+                    secondary_hash = second.snapshot.content_sha256 if second is not None else "NO_SECONDARY_PROVIDER"
+                    fingerprint = hashlib.sha256(
+                        (first.snapshot.content_sha256 + secondary_hash + gas_snapshot.content_sha256
+                         + str(latest_features.index[0]) + str(horizon) + model_key).encode()
+                    ).hexdigest()
+                    vintage = ForecastVintage(
+                        forecast_id=f"UNG-{latest_features.index[0].date().isoformat()}T{now.strftime('%H%M%S')}-{model_key}-{horizon}D-{fingerprint[:12]}",
+                        instrument="UNG",
+                        as_of=now,
+                        origin_session=latest_features.index[0].date(),
+                        horizon_sessions=horizon,
+                        reference_close=float(ung.iloc[-1]["close"]),
+                        probability_up=forecast.probability_up,
+                        expected_return=forecast.expected_return,
+                        expected_close=forecast.expected_close,
+                        predicted_low=forecast.predicted_low,
+                        predicted_high=forecast.predicted_high,
+                        lower_return_quantile=forecast.lower_return_quantile,
+                        upper_return_quantile=forecast.upper_return_quantile,
+                        calibration_sample_count=forecast.calibration_sample_count,
+                        calibration_method=forecast.calibration_method,
+                        model_name=model_key,
+                        model_version=forecast.model_version,
+                        input_fingerprint=fingerprint,
+                        status="PROVISIONAL",
+                    )
+                    ledger.append_forecast(vintage)
+                    emitted += 1
+                    model_forecasts += 1
+                model_statuses.append({"model_key": model_key, "label": spec.label, "status": "FORECASTED",
+                                       "forecasts_emitted": model_forecasts})
+            except Exception as model_exc:
+                LOG.exception("Model %s failed; continuing other models", model_key)
+                model_statuses.append({"model_key": model_key, "label": spec.label, "status": "FAILED",
+                                       "error_type": type(model_exc).__name__, "error": str(model_exc)[:500]})
         scored = ledger.score_matured(ung, now=now)
         evaluation_report: dict[str, object] = {"status": "BLOCKED", "reason": "Not yet evaluated"}
         try:
@@ -122,7 +155,7 @@ def run_once(output_dir: str = "data/ledger") -> dict[str, object]:
         )
         report = {
             "run_at": now.isoformat(),
-            "status": "PROVISIONAL",
+            "status": "PROVISIONAL" if emitted > 0 else "BLOCKED",
             "latest_ung_session": str(ung.index[-1].date()),
             "ung_first_session": str(ung.index[0].date()),
             "ung_history_rows": int(len(ung)),
@@ -132,13 +165,17 @@ def run_once(output_dir: str = "data/ledger") -> dict[str, object]:
             "feature_rows": int(len(features)),
             "provider_agreement": agreement_note,
             "forecasts_emitted": emitted,
+            "enabled_models": enabled_models,
+            "model_statuses": model_statuses,
+            "model_count_forecasted": sum(1 for item in model_statuses if item["status"] == "FORECASTED"),
+            "model_count_failed": sum(1 for item in model_statuses if item["status"] == "FAILED"),
             "outcomes_scored": scored,
             "evaluation": evaluation_report,
             "source_providers": [first.snapshot.provider]
                 + ([second.snapshot.provider] if second is not None else [])
                 + [gas_snapshot.provider],
             "uncertainty_status": "Return intervals use purged walk-forward residuals when at least 50 are available; high-low range calibration and coverage review remain outstanding.",
-            "note": "Research output only; not investment advice or a trading instruction.",
+            "note": "Independent model competition; shadow research only, not investment advice or a trading instruction.",
         }
     except Exception as exc:
         LOG.exception("Run blocked")
