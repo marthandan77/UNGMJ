@@ -8,7 +8,6 @@ import logging
 from datetime import datetime, timezone
 from pathlib import Path
 
-import pandas as pd
 
 from .contracts import DataValidationError, ForecastVintage
 from .features import build_features, build_forward_targets
@@ -67,20 +66,21 @@ def run_once(output_dir: str = "data/ledger") -> dict[str, object]:
                 model_name=forecast.model_name,
                 model_version=forecast.model_version,
                 input_fingerprint=fingerprint,
-                status="READY",
+                status="PROVISIONAL",
             )
             ledger.append_forecast(vintage)
             emitted += 1
         scored = ledger.score_matured(ung, now=now)
         report = {
             "run_at": now.isoformat(),
-            "status": "READY",
+            "status": "PROVISIONAL",
             "latest_ung_session": str(ung.index[-1].date()),
             "latest_henry_hub_session": str(gas.index[-1].date()),
             "provider_agreement": agreement_note,
             "forecasts_emitted": emitted,
             "outcomes_scored": scored,
             "source_providers": [first.snapshot.provider, second.snapshot.provider, gas_snapshot.provider],
+            "uncertainty_status": "UNCALIBRATED; provisional until chronological out-of-sample calibration passes",
             "note": "Research output only; not investment advice or a trading instruction.",
         }
     except Exception as exc:
