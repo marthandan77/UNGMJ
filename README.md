@@ -22,8 +22,8 @@ Private-use, non-commercial research project for probabilistic forecasts of the 
 9. Never weaken data, validation, or forecast integrity checks merely to produce a forecast.
 
 ## Build status
-The implementation includes contracts, candidate free-source ingestion (Yahoo chart and Stooq for UNG; official EIA API or public XLS for Henry Hub spot), fail-closed provider checks, point-in-time features, a Ridge baseline, chronological strategy/feature ablation evaluation, immutable forecast and outcome ledgers, a static read-only dashboard, CI, and one scheduled orchestrator.
-Forecasts remain **PROVISIONAL** until live feed reliability and out-of-sample uncertainty calibration are independently demonstrated. Provider endpoints and the EIA workbook parser still require a successful real-data end-to-end run. The dashboard is built as a workflow artifact; it is not yet deployed to a persistent public hosting URL.
+The implementation includes contracts, candidate free-source ingestion (Nasdaq historical OHLCV first, Yahoo chart and Stooq as fallback/confirmation; official EIA API or public XLS for Henry Hub spot), fail-closed provider checks, point-in-time features, a Ridge baseline, chronological strategy/feature ablation evaluation, immutable forecast and outcome ledgers, a static read-only dashboard, CI, and one scheduled orchestrator.
+Forecasts remain **PROVISIONAL** until live feed reliability and out-of-sample uncertainty calibration are independently demonstrated. A live-data workflow run has succeeded using Nasdaq UNG OHLCV and the official EIA XLS history. Independent UNG confirmation remains unavailable in the latest run, so outputs stay PROVISIONAL. The dashboard is built as a workflow artifact; it is not yet deployed to a persistent public hosting URL.
 
 ## Development
 Python 3.12+. Install development dependencies and run tests:
