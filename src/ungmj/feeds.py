@@ -134,48 +134,56 @@ def fetch_eia_henry_hub_spot(api_key: str | None = None) -> tuple[pd.DataFrame, 
             workbook = pd.read_excel(BytesIO(raw_for_hash), sheet_name=0, header=None, engine="xlrd")
         except Exception as exc:
             raise DataValidationError(f"Could not download/parse official EIA workbook: {exc}") from exc
-        date_col = None
-        best_date_count = 0
-        current_year = datetime.now(timezone.utc).year
-        for column in workbook.columns:
-            parsed = pd.to_datetime(workbook[column], errors="coerce", format="mixed")
-            serials = pd.to_numeric(workbook[column], errors="coerce")
-            serial_mask = serials.between(30000, 60000)
-            if serial_mask.any():
-                parsed.loc[serial_mask] = pd.to_datetime(
-                    serials.loc[serial_mask], unit="D", origin="1899-12-30", errors="coerce"
-                )
-            valid_dates = parsed.notna() & (parsed.dt.year >= 1990) & (parsed.dt.year <= current_year + 1)
-            count = int(valid_dates.sum())
-            if count > best_date_count:
-                best_date_count = count
-                date_col = column
-        if date_col is None or best_date_count < 1000:
+        import re
+        weekday_names = ("mon", "tue", "wed", "thu", "fri")
+        header_row = None
+        week_col = None
+        weekday_cols: dict[str, int] = {}
+        for row_index, row in workbook.iterrows():
+            values = [str(value).replace("\\xa0", " ").strip().lower() for value in row.tolist()]
+            if "week of" in values:
+                header_row = row_index
+                week_col = values.index("week of")
+                for weekday in weekday_names:
+                    if weekday in values:
+                        weekday_cols[weekday] = values.index(weekday)
+                if len(weekday_cols) == 5:
+                    break
+        if header_row is None or week_col is None or len(weekday_cols) != 5:
             sample = workbook.head(10).fillna("").astype(str).to_dict(orient="records")
             raise DataValidationError(
-                f"EIA workbook has no recognizable daily date column; shape={workbook.shape}; sample={sample}"
+                f"EIA workbook weekly header not recognized; shape={workbook.shape}; sample={sample}"
             )
-        value_col = None
-        best_value_count = 0
-        for column in workbook.columns:
-            if column == date_col:
+        month_numbers = {
+            "jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6,
+            "jul": 7, "aug": 8, "sep": 9, "oct": 10, "nov": 11, "dec": 12,
+        }
+        pattern = re.compile(
+            r"(?P<year>\\d{4})\\s+(?P<month>[A-Za-z]{3})-\\s*(?P<day>\\d{1,2})\\s+to\\s+"
+            r"(?P<end_month>[A-Za-z]{3})-\\s*(?P<end_day>\\d{1,2})",
+            flags=re.IGNORECASE,
+        )
+        observations: list[tuple[datetime, float]] = []
+        for _, row in workbook.iloc[header_row + 1:].iterrows():
+            match = pattern.search(str(row.iloc[week_col]).replace("\\xa0", " ").strip())
+            if not match:
                 continue
-            numeric = pd.to_numeric(workbook[column], errors="coerce")
-            count = int(numeric.notna().sum())
-            header_text = " ".join(str(value).lower() for value in workbook[column].head(8))
-            if count > best_value_count:
-                best_value_count = count
-                value_col = column
-            if "henry hub" in header_text and ("spot" in header_text or "price" in header_text):
-                value_col = column
-                break
-        if value_col is None or best_value_count < 1000:
-            raise DataValidationError("EIA workbook has no recognizable Henry Hub value column")
-        body = workbook[[date_col, value_col]].copy()
-        body.columns = ["session", "henry_hub_spot"]
-        body["session"] = pd.to_datetime(body["session"], errors="coerce").dt.normalize()
-        body["henry_hub_spot"] = pd.to_numeric(body["henry_hub_spot"], errors="coerce")
-        frame = body.dropna(subset=["session", "henry_hub_spot"]).set_index("session").sort_index()
+            year = int(match.group("year"))
+            month = month_numbers.get(match.group("month").lower())
+            if month is None:
+                continue
+            week_start = datetime(year, month, int(match.group("day")))
+            for day_offset, weekday in enumerate(weekday_names):
+                raw_value = str(row.iloc[weekday_cols[weekday]]).replace("$", "").replace(",", "").strip()
+                value = pd.to_numeric(raw_value, errors="coerce")
+                if pd.isna(value):
+                    continue
+                session = week_start + pd.Timedelta(days=day_offset)
+                observations.append((pd.Timestamp(session).to_pydatetime(), float(value)))
+        if not observations:
+            raise DataValidationError("EIA workbook contains no parseable daily Henry Hub observations")
+        frame = pd.DataFrame(observations, columns=["session", "henry_hub_spot"]).set_index("session").sort_index()
+        frame.index = pd.DatetimeIndex(frame.index).normalize()
         if len(frame) < 1000:
             raise DataValidationError(f"EIA workbook parsed only {len(frame)} daily observations")
         raw = "[binary EIA XLS workbook; SHA-256 recorded from exact downloaded bytes]"
