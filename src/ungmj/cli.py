@@ -8,6 +8,7 @@ import logging
 from datetime import datetime, timezone
 from pathlib import Path
 
+import pandas as pd
 
 from .contracts import DataValidationError, ForecastVintage
 from .features import build_features, build_forward_targets
