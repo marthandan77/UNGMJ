@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "enabled_models": [
+    "ridge",
+    "elastic_net",
+    "random_forest",
+    "extra_trees",
+    "hist_gradient_boosting",
+    "lightgbm",
+    "xgboost",
+    "sgd_online"
+  ],
+  "updated_at": "2026-10-16T00:00:00+00:00",
+  "note": "Initial all-model shadow competition configuration; no model has trading authority."
+}
