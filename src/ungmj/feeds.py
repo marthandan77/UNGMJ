@@ -131,25 +131,41 @@ def fetch_eia_henry_hub_spot(api_key: str | None = None) -> tuple[pd.DataFrame, 
             workbook = pd.read_excel(BytesIO(raw_for_hash), sheet_name=0, header=None, engine="xlrd")
         except Exception as exc:
             raise DataValidationError(f"Could not download/parse official EIA workbook: {exc}") from exc
-        header_row = None
-        date_col = value_col = None
-        for row_index, row in workbook.iterrows():
-            values = [str(value).strip().lower() for value in row.tolist()]
-            for col_index, value in enumerate(values):
-                if value == "date":
-                    date_col = col_index
-                if "henry hub" in value and ("spot" in value or "price" in value):
-                    value_col = col_index
-            if date_col is not None and value_col is not None:
-                header_row = row_index
+        date_col = None
+        best_date_count = 0
+        current_year = datetime.now(timezone.utc).year
+        for column in workbook.columns:
+            parsed = pd.to_datetime(workbook[column], errors="coerce")
+            valid_dates = parsed.notna() & (parsed.dt.year >= 1990) & (parsed.dt.year <= current_year + 1)
+            count = int(valid_dates.sum())
+            if count > best_date_count:
+                best_date_count = count
+                date_col = column
+        if date_col is None or best_date_count < 1000:
+            raise DataValidationError("EIA workbook has no recognizable daily date column")
+        value_col = None
+        best_value_count = 0
+        for column in workbook.columns:
+            if column == date_col:
+                continue
+            numeric = pd.to_numeric(workbook[column], errors="coerce")
+            count = int(numeric.notna().sum())
+            header_text = " ".join(str(value).lower() for value in workbook[column].head(8))
+            if count > best_value_count:
+                best_value_count = count
+                value_col = column
+            if "henry hub" in header_text and ("spot" in header_text or "price" in header_text):
+                value_col = column
                 break
-        if header_row is None:
-            raise DataValidationError("EIA workbook header not recognized; parser fails closed")
-        body = workbook.iloc[header_row + 1:, [date_col, value_col]].copy()
+        if value_col is None or best_value_count < 1000:
+            raise DataValidationError("EIA workbook has no recognizable Henry Hub value column")
+        body = workbook[[date_col, value_col]].copy()
         body.columns = ["session", "henry_hub_spot"]
         body["session"] = pd.to_datetime(body["session"], errors="coerce").dt.normalize()
         body["henry_hub_spot"] = pd.to_numeric(body["henry_hub_spot"], errors="coerce")
         frame = body.dropna(subset=["session", "henry_hub_spot"]).set_index("session").sort_index()
+        if len(frame) < 1000:
+            raise DataValidationError(f"EIA workbook parsed only {len(frame)} daily observations")
         raw = "[binary EIA XLS workbook; SHA-256 recorded from exact downloaded bytes]"
         provider = "eia_bulk_xls"
     if frame.empty or frame.index.has_duplicates or frame["henry_hub_spot"].isna().any():
