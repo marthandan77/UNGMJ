@@ -37,7 +37,7 @@ def test_validate_ohlcv_returns_sorted_copy() -> None:
         (lambda f: f.assign(open=[0.0, 10.5]), "must all be positive"),
         (lambda f: f.assign(volume=[1000, -1]), "volume must be non-negative"),
         (lambda f: f.assign(high=[9.0, 11.5]), "high must be >="),
-        (lambda f: f.assign(low=[12.0, 10.0]), "low must be <="),
+        (lambda f: f.assign(low=[10.2, 10.0]), "low must be <="),
     ],
 )
 def test_validate_ohlcv_rejects_invalid_values(mutation, message: str) -> None:
