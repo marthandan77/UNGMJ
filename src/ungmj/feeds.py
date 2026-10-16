@@ -204,20 +204,20 @@ def latest_session_agreement(
     )
 
 
-def fetch_ung_sources() -> tuple[FetchedFrame, FetchedFrame]:
-    """Fetch both candidate sources; no single-source fallback is allowed."""
-    errors: list[str] = []
-    results: list[FetchedFrame] = []
+def fetch_ung_sources() -> tuple[FetchedFrame, FetchedFrame | None]:
+    """Fetch a primary UNG OHLCV source and optional independent confirmation source."""
+    try:
+        primary = fetch_yahoo_ung()
+    except Exception as exc:
+        raise DataValidationError(
+            f"Primary Yahoo UNG source failed: {type(exc).__name__}: {exc}"
+        ) from exc
     from .nasdaq import fetch_nasdaq_ung
-    for fetcher in (fetch_yahoo_ung, fetch_nasdaq_ung, fetch_stooq_ung):
-        if len(results) >= 2:
-            break
+    errors: list[str] = []
+    for fetcher in (fetch_nasdaq_ung, fetch_stooq_ung):
         try:
-            results.append(fetcher())
+            return primary, fetcher()
         except Exception as exc:
             errors.append(f"{fetcher.__name__}: {type(exc).__name__}: {exc}")
-    if len(results) != 2:
-        raise DataValidationError(
-            "Both independent UNG sources are required for confirmation. " + " | ".join(errors)
-        )
-    return results[0], results[1]
+    LOG.warning("Secondary UNG providers unavailable; primary-only forecasts must remain PROVISIONAL: %s", " | ".join(errors))
+    return primary, None
