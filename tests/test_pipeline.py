@@ -58,7 +58,12 @@ def test_ridge_forecast_outputs_valid_prices() -> None:
     features = build_features(frame)
     target = build_forward_targets(frame, 1)
     eligible = target.loc[target.index <= frame.index[-2]]
-    result = fit_and_forecast(features, eligible, float(frame["close"].iloc[-1]), min_train_rows=100)
+    result = fit_and_forecast(
+        features, eligible, float(frame["close"].iloc[-1]), min_train_rows=100,
+        calibration_residuals=np.linspace(-0.1, 0.1, 60),
+    )
+    assert result.calibration_sample_count == 60
+    assert result.calibration_method == "purged_walk_forward_residuals"
     assert 0 <= result.probability_up <= 1
     assert result.predicted_low <= result.predicted_high
     assert result.expected_close > 0
