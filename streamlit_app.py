@@ -214,6 +214,9 @@ if scored_rows:
         errors = [float(row["absolute_return_error"]) for row in rows if row.get("absolute_return_error") is not None]
         briers = [float(row["brier_score"]) for row in rows if row.get("brier_score") is not None]
         directions = [bool(row["direction_correct"]) for row in rows if row.get("direction_correct") is not None]
+        range_rows = [row for row in rows if row.get("range_covered") is not None
+                      and row.get("low_price_absolute_error") is not None
+                      and row.get("high_price_absolute_error") is not None]
         competition.append({
             "Model": MODEL_OPTIONS.get(model_key, model_key),
             "Horizon (sessions)": horizon,
@@ -221,10 +224,15 @@ if scored_rows:
             "MAE (return)": sum(errors) / len(errors) if errors else None,
             "Direction accuracy": sum(directions) / len(directions) if directions else None,
             "Brier score (lower is better)": sum(briers) / len(briers) if briers else None,
+            "Full-range coverage": sum(bool(row["range_covered"]) for row in range_rows) / len(range_rows) if range_rows else None,
+            "Low MAE ($)": sum(float(row["low_price_absolute_error"]) for row in range_rows) / len(range_rows) if range_rows else None,
+            "High MAE ($)": sum(float(row["high_price_absolute_error"]) for row in range_rows) / len(range_rows) if range_rows else None,
+            "Mean range width ($)": sum(float(row["range_width_price"]) for row in range_rows if row.get("range_width_price") is not None) / len([row for row in range_rows if row.get("range_width_price") is not None]) if any(row.get("range_width_price") is not None for row in range_rows) else None,
+            "Range-scored forecasts": len(range_rows),
             "Evidence": "Early sample" if len(rows) < 30 else ("Developing" if len(rows) < 100 else "Larger sample"),
         })
     st.dataframe(competition, use_container_width=True, hide_index=True)
-    st.caption("Compare models within the same horizon. MAE and Brier score are lower-is-better; directional accuracy is not sufficient by itself. Small samples are noisy.")
+    st.caption("Compare models within the same horizon. MAE, Brier score, and low/high price errors are lower-is-better. Full-range coverage should be considered together with mean range width; wide ranges can achieve high coverage without being useful. Small samples are noisy.")
 else:
     st.info("Model competition scores will appear after forecast horizons mature. Existing forecasts are preserved for audit and later scoring.")
 
@@ -260,7 +268,7 @@ if five_session:
         use_container_width=True,
         hide_index=True,
     )
-    st.caption("Compare the range separately for each model; models are not averaged. The current range method uses historical forward-low/high distributions, so it should be treated as provisional until out-of-sample coverage is validated.")
+    st.caption("Each model predicts the forward low and high directly. Bounds are calibrated only after at least 30 matured out-of-sample range errors are available for that model and horizon; otherwise the range is explicitly uncalibrated. Compare coverage alongside width and low/high error.")
 else:
     st.info("No valid five-session forecast is available yet. The next scheduled run should create one when the market data and timing checks pass.")
 
