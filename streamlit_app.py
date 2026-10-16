@@ -112,6 +112,8 @@ if status != "READY":
     )
 if report.get("error"):
     st.error(str(report["error"]))
+if report.get("run_validity_note"):
+    st.warning(str(report["run_validity_note"]))
 
 m1, m2, m3, m4 = st.columns(4)
 m1.metric("UNG history rows", str(report.get("ung_history_rows", "—")))
