@@ -151,7 +151,10 @@ def fetch_eia_henry_hub_spot(api_key: str | None = None) -> tuple[pd.DataFrame, 
                 best_date_count = count
                 date_col = column
         if date_col is None or best_date_count < 1000:
-            raise DataValidationError("EIA workbook has no recognizable daily date column")
+            sample = workbook.head(10).fillna("").astype(str).to_dict(orient="records")
+            raise DataValidationError(
+                f"EIA workbook has no recognizable daily date column; shape={workbook.shape}; sample={sample}"
+            )
         value_col = None
         best_value_count = 0
         for column in workbook.columns:
