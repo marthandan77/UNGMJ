@@ -88,6 +88,9 @@ def fetch_yahoo_ung() -> FetchedFrame:
         raise DataValidationError("Yahoo chart response schema/coverage invalid") from exc
     frame = frame.dropna(subset=["open", "high", "low", "close", "volume"])
     checked = validate_ohlcv(frame, instrument="UNG")
+    age_days = (datetime.now(timezone.utc).date() - checked.index[-1].date()).days
+    if age_days < 0 or age_days > 5:
+        raise DataValidationError(f"Yahoo UNG history is stale: {checked.index[-1].date()} ({age_days} calendar days old)")
     return FetchedFrame(checked, _snapshot("yahoo_chart", "UNG", url, raw, checked.index[-1].date()), raw)
 
 
