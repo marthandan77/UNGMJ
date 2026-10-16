@@ -69,6 +69,8 @@ jobs:
             data/ledger/latest-run.json
             data/ledger/forecasts.jsonl
             data/ledger/outcomes.jsonl
+            data/ledger/invalidations.jsonl
+            data/ledger/model-config.json
             data/ledger/evaluation.json
           if-no-files-found: warn
           retention-days: 30
