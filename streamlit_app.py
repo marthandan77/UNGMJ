@@ -107,24 +107,28 @@ m2.metric("Henry Hub rows", str(report.get("henry_hub_history_rows", "—")))
 m3.metric("Valid forecasts this run", str(report.get("valid_forecasts_emitted", report.get("forecasts_emitted", 0))))
 m4.metric("Matured outcomes", str(len(outcomes)))
 
-st.subheader("Latest forecast vintages")
+st.subheader("Forecast history")
+st.caption(
+    "A record of the predictions the system made. We keep older predictions so we can "
+    "check later how accurate they were. These are estimates, not promises."
+)
 if visible_forecasts:
     ordered = list(reversed(visible_forecasts[-100:]))
     st.dataframe(
         [
             {
-                "Issued (UTC)": row.get("as_of"),
-                "Origin session": row.get("origin_session"),
-                "Horizon": f"{row.get('horizon_sessions')} sessions",
-                "Reference close": row.get("reference_close"),
-                "Expected close": row.get("expected_close"),
-                "P(up)": row.get("probability_up"),
-                "Predicted low": row.get("predicted_low"),
-                "Predicted high": row.get("predicted_high"),
-                "Calibration N": row.get("calibration_sample_count"),
-                "Calibration method": row.get("calibration_method"),
-                "Status": row.get("status"),
-                "Audit reason": row.get("invalidation_reason", ""),
+                "Made on (UTC)": row.get("as_of"),
+                "Starting date": row.get("origin_session"),
+                "Looking ahead": f"{row.get('horizon_sessions')} trading day(s)",
+                "UNG price at start": row.get("reference_close"),
+                "Estimated future price": row.get("expected_close"),
+                "Chance price rises": row.get("probability_up"),
+                "Possible lower price": row.get("predicted_low"),
+                "Possible higher price": row.get("predicted_high"),
+                "Past examples used": row.get("calibration_sample_count"),
+                "How chance was estimated": row.get("calibration_method"),
+                "Record status": "Cancelled — not scored" if row.get("status") == "VOID" else row.get("status", "Not specified"),
+                "Why cancelled?": row.get("invalidation_reason", ""),
             }
             for row in ordered
         ],
@@ -132,7 +136,7 @@ if visible_forecasts:
         hide_index=True,
     )
 else:
-    st.info("No forecast vintages are available yet.")
+    st.info("No predictions have been recorded yet.")
 
 st.subheader("Walk-forward evaluation")
 st.write(
