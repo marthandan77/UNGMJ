@@ -140,7 +140,7 @@ def fetch_eia_henry_hub_spot(api_key: str | None = None) -> tuple[pd.DataFrame, 
         week_col = None
         weekday_cols: dict[str, int] = {}
         for row_index, row in workbook.iterrows():
-            values = [str(value).replace("\\xa0", " ").strip().lower() for value in row.tolist()]
+            values = [str(value).replace("chr(160)", " ").strip().lower() for value in row.tolist()]
             if "week of" in values:
                 header_row = row_index
                 week_col = values.index("week of")
@@ -159,13 +159,13 @@ def fetch_eia_henry_hub_spot(api_key: str | None = None) -> tuple[pd.DataFrame, 
             "jul": 7, "aug": 8, "sep": 9, "oct": 10, "nov": 11, "dec": 12,
         }
         pattern = re.compile(
-            r"(?P<year>\\d{4})\\s+(?P<month>[A-Za-z]{3})-\\s*(?P<day>\\d{1,2})\\s+to\\s+"
-            r"(?P<end_month>[A-Za-z]{3})-\\s*(?P<end_day>\\d{1,2})",
+            r"(?P<year>\d{4})\s+(?P<month>[A-Za-z]{3})-\s*(?P<day>\d{1,2})\s+to\s+"
+            r"(?P<end_month>[A-Za-z]{3})-\s*(?P<end_day>\d{1,2})",
             flags=re.IGNORECASE,
         )
         observations: list[tuple[datetime, float]] = []
         for _, row in workbook.iloc[header_row + 1:].iterrows():
-            match = pattern.search(str(row.iloc[week_col]).replace("\\xa0", " ").strip())
+            match = pattern.search(str(row.iloc[week_col]).replace("chr(160)", " ").strip())
             if not match:
                 continue
             year = int(match.group("year"))
