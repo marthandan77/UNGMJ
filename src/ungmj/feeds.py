@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 import json
 import os
 import urllib.parse
@@ -14,6 +15,8 @@ from typing import Any
 import pandas as pd
 
 from .contracts import DataValidationError, SourceSnapshot, validate_ohlcv
+
+LOG = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
