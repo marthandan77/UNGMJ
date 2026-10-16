@@ -2,6 +2,6 @@
   "error": "EIA workbook has no recognizable daily date column",
   "error_type": "DataValidationError",
   "forecasts_emitted": 0,
-  "run_at": "2026-10-16T11:50:47.437249+00:00",
+  "run_at": "2026-10-16T11:51:29.486206+00:00",
   "status": "BLOCKED"
 }
