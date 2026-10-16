@@ -2,6 +2,6 @@
   "error": "EIA workbook weekly header not recognized; shape=(15, 6); sample=[{0: '', 1: '', 2: '', 3: '', 4: '', 5: ''}, {0: '', 1: 'Workbook Contents', 2: '', 3: '', 4: '', 5: ''}, {0: '', 1: 'Henry Hub Natural Gas Spot Price (Dollars per Million Btu)', 2: '', 3: '', 4: '', 5: ''}, {0: '', 1: '', 2: '', 3: '', 4: '', 5: ''}, {0: '', 1: 'Click worksheet name or tab at bottom for data', 2: '', 3: '', 4: '', 5: ''}, {0: '', 1: 'Worksheet Name', 2: 'Description', 3: '# Of Series', 4: 'Frequency', 5: 'Latest Data for'}, {0: '', 1: 'Data 1', 2: 'Henry Hub Natural Gas Spot Price (Dollars per Million Btu)', 3: '1', 4: 'Daily', 5: '10/14/2026'}, {0: '', 1: '', 2: '', 3: '', 4: '', 5: ''}, {0: '', 1: 'Release Date:', 2: '10/15/2026', 3: '', 4: '', 5: ''}, {0: '', 1: 'Next Release Date:', 2: '10/21/2026', 3: '', 4: '', 5: ''}]",
   "error_type": "DataValidationError",
   "forecasts_emitted": 0,
-  "run_at": "2026-10-16T11:52:11.455364+00:00",
+  "run_at": "2026-10-16T11:53:44.789180+00:00",
   "status": "BLOCKED"
 }
