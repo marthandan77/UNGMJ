@@ -38,6 +38,7 @@ class ForecastLedger:
             raise DataValidationError(f"forecast_id already exists: {forecast.forecast_id}")
         payload = asdict(forecast)
         payload["as_of"] = forecast.as_of.isoformat()
+        payload["origin_session"] = forecast.origin_session.isoformat()
         self._append(self.forecasts_path, payload)
 
     def score_matured(self, bars: pd.DataFrame, *, now: datetime | None = None) -> int:
@@ -53,8 +54,8 @@ class ForecastLedger:
             fid = forecast["forecast_id"]
             if fid in existing:
                 continue
-            as_of = pd.Timestamp(forecast["as_of"])
-            eligible = sessions[sessions > as_of.tz_localize(None).normalize()]
+            origin_session = pd.Timestamp(forecast["origin_session"]).normalize()
+            eligible = sessions[sessions > origin_session]
             horizon = int(forecast["horizon_sessions"])
             if len(eligible) < horizon:
                 continue
