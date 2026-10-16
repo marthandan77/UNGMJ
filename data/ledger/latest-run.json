@@ -1,21 +1,7 @@
 {
-  "evaluation": {
-    "automatic_promotion": false,
-    "error": "Insufficient history for evaluation: need at least 252 rows",
-    "error_type": "DataValidationError",
-    "status": "BLOCKED"
-  },
-  "forecasts_emitted": 4,
-  "latest_henry_hub_session": "2026-10-14",
-  "latest_ung_session": "2026-10-16",
-  "note": "Research output only; not investment advice or a trading instruction.",
-  "outcomes_scored": 0,
-  "provider_agreement": "PROVISIONAL: only Yahoo UNG history is available; independent confirmation unavailable",
-  "run_at": "2026-10-16T14:33:49.489622+00:00",
-  "source_providers": [
-    "yahoo_chart",
-    "eia_bulk_xls"
-  ],
-  "status": "PROVISIONAL",
-  "uncertainty_status": "Return intervals use purged walk-forward residuals when at least 50 are available; high-low range calibration and coverage review remain outstanding."
+  "error": "Primary Yahoo UNG source failed: DataValidationError: Yahoo UNG history is stale: 2026-10-01 (15 calendar days old)",
+  "error_type": "DataValidationError",
+  "forecasts_emitted": 0,
+  "run_at": "2026-10-16T14:37:04.024936+00:00",
+  "status": "BLOCKED"
 }
