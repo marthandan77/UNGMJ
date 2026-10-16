@@ -58,6 +58,8 @@ class ForecastVintage:
     predicted_high: float
     lower_return_quantile: float
     upper_return_quantile: float
+    calibration_sample_count: int
+    calibration_method: str
     model_name: str
     model_version: str
     input_fingerprint: str
@@ -72,6 +74,8 @@ class ForecastVintage:
             raise ValueError("origin_session must be a date")
         if self.horizon_sessions not in HORIZONS:
             raise ValueError(f"horizon_sessions must be one of {HORIZONS}")
+        if self.calibration_sample_count < 0 or not self.calibration_method.strip():
+            raise ValueError("calibration metadata must be valid")
         if not self.instrument.strip() or not self.model_name.strip() or not self.model_version.strip():
             raise ValueError("instrument and model identity fields must not be blank")
         numeric = (
