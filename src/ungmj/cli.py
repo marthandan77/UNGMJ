@@ -74,6 +74,8 @@ def run_once(output_dir: str = "data/ledger") -> dict[str, object]:
                 predicted_high=forecast.predicted_high,
                 lower_return_quantile=forecast.lower_return_quantile,
                 upper_return_quantile=forecast.upper_return_quantile,
+                calibration_sample_count=forecast.calibration_sample_count,
+                calibration_method=forecast.calibration_method,
                 model_name=forecast.model_name,
                 model_version=forecast.model_version,
                 input_fingerprint=fingerprint,
@@ -119,7 +121,7 @@ def run_once(output_dir: str = "data/ledger") -> dict[str, object]:
             "outcomes_scored": scored,
             "evaluation": evaluation_report,
             "source_providers": [first.snapshot.provider, second.snapshot.provider, gas_snapshot.provider],
-            "uncertainty_status": "UNCALIBRATED; provisional until chronological out-of-sample calibration passes",
+            "uncertainty_status": "Return intervals use purged walk-forward residuals when at least 50 are available; high-low range calibration and coverage review remain outstanding.",
             "note": "Research output only; not investment advice or a trading instruction.",
         }
     except Exception as exc:
