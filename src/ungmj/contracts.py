@@ -48,6 +48,7 @@ class ForecastVintage:
     forecast_id: str
     instrument: str
     as_of: datetime
+    origin_session: date
     horizon_sessions: int
     reference_close: float
     probability_up: float
@@ -67,6 +68,8 @@ class ForecastVintage:
             raise ValueError("forecast_id must not be blank")
         if self.as_of.tzinfo is None or self.as_of.utcoffset() is None:
             raise ValueError("as_of must be timezone-aware")
+        if not isinstance(self.origin_session, date):
+            raise ValueError("origin_session must be a date")
         if self.horizon_sessions not in HORIZONS:
             raise ValueError(f"horizon_sessions must be one of {HORIZONS}")
         if not self.instrument.strip() or not self.model_name.strip() or not self.model_version.strip():
