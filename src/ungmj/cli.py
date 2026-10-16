@@ -95,7 +95,7 @@ def run_once(output_dir: str = "data/ledger") -> dict[str, object]:
                 eval_targets = build_forward_targets(ung, eval_horizon)
                 horizon_rows = evaluate_strategies_and_features(
                     features, eval_targets, horizon_sessions=eval_horizon,
-                    min_train_rows=100, step=20,
+                    min_train_rows=100, step=60,
                 )
                 evaluation_rows.extend(horizon_rows.to_dict(orient="records"))
             evaluation_frame = pd.DataFrame(evaluation_rows)
