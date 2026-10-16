@@ -24,6 +24,8 @@ class ModelForecast:
     upper_return_quantile: float
     model_name: str = "ridge"
     model_version: str = "0.1.0"
+    calibration_sample_count: int = 0
+    calibration_method: str = "in_sample_fallback"
 
 
 def _pipeline(alpha: float = 10.0) -> Pipeline:
@@ -86,6 +88,8 @@ def fit_and_forecast(
         predicted_high=max(0.02, reference_close * (1 + high_return)),
         lower_return_quantile=float(lower),
         upper_return_quantile=float(upper),
+        calibration_sample_count=len(calibration),
+        calibration_method="purged_walk_forward_residuals" if len(calibration) >= 50 else "in_sample_fallback",
     )
 
 
