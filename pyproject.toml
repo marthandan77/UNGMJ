@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ungmj"
+version = "0.1.0"
+description = "Point-in-time, walk-forward research forecasting for the UNG ETF"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+  "numpy>=1.26,<3",
+  "pandas>=2.2,<4",
+  "scikit-learn>=1.5,<2",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0,<9", "ruff>=0.9,<1"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
