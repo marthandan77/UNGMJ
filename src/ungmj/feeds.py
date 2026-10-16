@@ -131,7 +131,12 @@ def fetch_eia_henry_hub_spot(api_key: str | None = None) -> tuple[pd.DataFrame, 
                 raw_for_hash = response.read()
             if not raw_for_hash:
                 raise DataValidationError("EIA historical workbook is empty")
-            workbook = pd.read_excel(BytesIO(raw_for_hash), sheet_name=0, header=None, engine="xlrd")
+            excel_file = pd.ExcelFile(BytesIO(raw_for_hash), engine="xlrd")
+            data_sheet = next(
+                (name for name in excel_file.sheet_names if name.strip().lower() not in {"contents", "workbook contents"}),
+                excel_file.sheet_names[-1],
+            )
+            workbook = pd.read_excel(excel_file, sheet_name=data_sheet, header=None)
         except Exception as exc:
             raise DataValidationError(f"Could not download/parse official EIA workbook: {exc}") from exc
         import re
