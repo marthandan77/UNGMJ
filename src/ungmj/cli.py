@@ -5,7 +5,6 @@ import argparse
 import hashlib
 import json
 import logging
-import os
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -27,7 +26,7 @@ def run_once(output_dir: str = "data/ledger") -> dict[str, object]:
         agreed, agreement_note = latest_session_agreement(first, second)
         if not agreed:
             raise DataValidationError(agreement_note)
-        gas, gas_snapshot, gas_raw = fetch_eia_henry_hub_spot()
+        gas, gas_snapshot, _ = fetch_eia_henry_hub_spot()
         ung = first.frame
         # Henry Hub is explanatory only and conservatively lagged by feature builder.
         features = build_features(ung, gas)
@@ -39,9 +38,11 @@ def run_once(output_dir: str = "data/ledger") -> dict[str, object]:
         for horizon in (1, 2, 3, 5):
             targets = build_forward_targets(ung, horizon)
             # The training label is truncated before the current feature row.
-            train_targets = targets.loc[targets.index < latest_features.index[0]]
+            # A label is eligible only if its entire forward horizon ended before the latest session.
+            last_eligible = ung.index[-(horizon + 1)]
+            train_targets = targets.loc[targets.index <= last_eligible]
             forecast = fit_and_forecast(
-                features.loc[features.index < latest_features.index[0]],
+                features,
                 train_targets,
                 float(ung.iloc[-1]["close"]),
                 min_train_rows=100,
