@@ -86,17 +86,19 @@ def walk_forward_predictions(
     *,
     min_train_rows: int = 250,
     step: int = 5,
+    horizon_sessions: int = 1,
     alpha: float = 10.0,
 ) -> pd.DataFrame:
     """Chronological expanding-window evaluation; each prediction uses only earlier rows."""
-    if step < 1:
-        raise ValueError("step must be positive")
+    if step < 1 or horizon_sessions < 1:
+        raise ValueError("step and horizon_sessions must be positive")
     joined = features.join(targets, how="inner")
     label_cols = ["forward_return", "forward_high_return", "forward_low_return"]
     feature_cols = list(features.columns)
     rows: list[dict[str, object]] = []
     for i in range(min_train_rows, len(joined), step):
-        train = joined.iloc[:i].dropna(subset=label_cols)
+        # Purge training labels whose forward horizon overlaps the test period.
+        train = joined.iloc[:max(0, i - horizon_sessions)].dropna(subset=label_cols)
         test = joined.iloc[i:i + step]
         if test.empty:
             break
@@ -114,6 +116,7 @@ def walk_forward_predictions(
                 "predicted_return": prediction,
                 "actual_return": float(row["forward_return"]),
                 "predicted_up": prediction > 0,
+                "naive_predicted_up": float(features.loc[timestamp].get("return_1", 0.0)) > 0,
                 "actual_up": float(row["forward_return"]) > 0,
                 "absolute_error": abs(prediction - float(row["forward_return"])),
             })
@@ -129,5 +132,7 @@ def evaluate_predictions(predictions: pd.DataFrame) -> dict[str, float | int | N
         "n": int(len(predictions)),
         "directional_accuracy": float((predictions["predicted_up"] == predictions["actual_up"]).mean()),
         "mae": float(predictions["absolute_error"].mean()),
-        "naive_directional_accuracy": float((predictions["actual_up"] == (predictions["actual_return"] > 0)).mean()),
+        "naive_directional_accuracy": float(
+            (predictions["naive_predicted_up"] == predictions["actual_up"]).mean()
+        ) if "naive_predicted_up" in predictions else None,
     }
