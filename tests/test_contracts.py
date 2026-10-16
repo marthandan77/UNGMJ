@@ -74,6 +74,7 @@ def test_forecast_vintage_rejects_invalid_probability_and_range() -> None:
         reference_close=10.0, probability_up=0.6, expected_return=0.01,
         expected_close=10.1, predicted_low=9.0, predicted_high=11.0,
         lower_return_quantile=-0.1, upper_return_quantile=0.1,
+        calibration_sample_count=50, calibration_method="purged_walk_forward_residuals",
         model_name="ridge", model_version="0.1.0", input_fingerprint=HASH,
     )
     ForecastVintage(**common)
