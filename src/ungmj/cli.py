@@ -118,7 +118,7 @@ def run_once(output_dir: str = "data/ledger") -> dict[str, object]:
                 "automatic_promotion": False,
             }
         Path(output_dir, "evaluation.json").write_text(
-            json.dumps(evaluation_report, indent=2, sort_keys=True) + "\\n"
+            json.dumps(evaluation_report, indent=2, sort_keys=True) + "\n"
         )
         report = {
             "run_at": now.isoformat(),
