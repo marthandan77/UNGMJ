@@ -110,11 +110,11 @@ def test_ledger_scores_matured_vintage_once(tmp_path) -> None:
 def test_strategy_and_feature_ablation_evaluation_is_out_of_sample() -> None:
     from ungmj.evaluation import evaluate_strategies_and_features, summarize_evaluation
 
-    frame = bars(150)
+    frame = bars(180)
     features = build_features(frame)
     targets = build_forward_targets(frame, 1)
     results = evaluate_strategies_and_features(
-        features, targets, horizon_sessions=1, min_train_rows=50, step=20, rolling_window=80
+        features, targets, horizon_sessions=1, min_train_rows=80, step=20, rolling_window=100
     )
     summaries = summarize_evaluation(results)
     assert len(results) > 0
