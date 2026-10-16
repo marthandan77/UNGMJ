@@ -32,12 +32,10 @@ jobs:
         run: python scripts/publish_site.py
       - name: Persist append-only research state
         if: always()
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p /tmp/ungmj-ledger-state
           cp -a data/ledger/. /tmp/ungmj-ledger-state/
-          git worktree add /tmp/ungmj-state research-state
+          git worktree add -b research-state /tmp/ungmj-state origin/research-state
           mkdir -p /tmp/ungmj-state/data/ledger
           cp -a /tmp/ungmj-ledger-state/. /tmp/ungmj-state/data/ledger/
           cd /tmp/ungmj-state
