@@ -51,7 +51,7 @@ def require_password() -> None:
         st.stop()
     if st.session_state.get("authenticated") is True:
         return
-    st.title("UNGMJ private research dashboard")
+    st.title("UNGMJ research dashboard (password protected)")
     st.caption("Password required. Research output only; not investment advice.")
     supplied = st.text_input("Access password", type="password")
     if st.button("Unlock dashboard", type="primary"):
