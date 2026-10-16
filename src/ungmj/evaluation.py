@@ -97,8 +97,17 @@ def summarize_evaluation(results: pd.DataFrame) -> list[dict[str, object]]:
     if results.empty:
         return []
     summaries: list[dict[str, object]] = []
-    for (strategy, group), frame in results.groupby(["strategy", "feature_group"], sort=True):
+    grouping = ["strategy", "feature_group"]
+    if "horizon_sessions" in results.columns:
+        grouping = ["horizon_sessions", *grouping]
+    for keys, frame in results.groupby(grouping, sort=True):
+        if len(grouping) == 3:
+            horizon, strategy, group = keys
+        else:
+            strategy, group = keys
+            horizon = None
         summaries.append({
+            "horizon_sessions": int(horizon) if horizon is not None else None,
             "strategy": str(strategy),
             "feature_group": str(group),
             "n": int(len(frame)),
