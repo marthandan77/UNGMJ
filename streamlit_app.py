@@ -39,8 +39,16 @@ if st.button("Calculate latest forecast", type="primary", use_container_width=Tr
     with st.spinner("Fetching validated UNG data and calculating individual forecasts..."):
         try:
             fetched = fetch_nasdaq_ung()
-            confirmation = fetch_yahoo_ung()
-            agreement = compare_sources(fetched, confirmation)
+            # Nasdaq is the primary source. Yahoo is an independent health check,
+            # but rate limiting there must not prevent a valid primary forecast.
+            try:
+                confirmation = fetch_yahoo_ung()
+                agreement = compare_sources(fetched, confirmation)
+                provider_status = "CONFIRMED"
+            except Exception as yahoo_exc:
+                agreement = f"Nasdaq primary accepted; Yahoo confirmation unavailable: {yahoo_exc}"
+                provider_status = "PRIMARY ONLY"
+                st.warning(agreement)
             context_frames = []
             context_status = {}
             for name, fetcher in (("EIA storage", fetch_eia_storage), ("CFTC positioning", fetch_cftc_positioning)):
@@ -58,7 +66,8 @@ if st.button("Calculate latest forecast", type="primary", use_container_width=Tr
             st.session_state["latest_forecasts"] = generated
             st.session_state["latest_bars"] = fetched.frame.tail(120)
             st.session_state["run_quality"] = {
-                "status": "READY" if len(context_frames) == 2 else "PROVISIONAL",
+                "status": "READY" if len(context_frames) == 2 and provider_status == "CONFIRMED" else "PROVISIONAL",
+                "provider_status": provider_status,
                 "agreement": agreement,
                 **context_status,
             }
@@ -72,7 +81,7 @@ if quality:
     st.subheader("Latest run quality")
     q1, q2, q3 = st.columns(3)
     q1.metric("Status", quality["status"])
-    q2.metric("UNG providers", "CONFIRMED")
+    q2.metric("UNG providers", quality.get("provider_status", "UNKNOWN"))
     q3.metric("Context sources", f"{sum(value == 'AVAILABLE' for key, value in quality.items() if key not in ('status', 'agreement'))}/2")
     st.caption(quality["agreement"])
     for key, value in quality.items():
