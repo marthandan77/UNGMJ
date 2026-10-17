@@ -194,7 +194,7 @@ def run_once(output_dir: str = "data/ledger") -> dict[str, object]:
             "source_providers": [first.snapshot.provider]
                 + ([second.snapshot.provider] if second is not None else [])
                 + [gas_snapshot.provider],
-            "uncertainty_status": "Return intervals use purged walk-forward residuals when at least 50 are available; high-low range calibration and coverage review remain outstanding.",
+            "uncertainty_status": "Five-session low/high forecasts are trained directly; range bounds are calibrated only after at least 30 matured out-of-sample outcomes for the same model version and horizon. Otherwise bounds are explicitly uncalibrated.",
             "note": "Independent model competition; shadow research only, not investment advice or a trading instruction.",
         }
     except Exception as exc:
