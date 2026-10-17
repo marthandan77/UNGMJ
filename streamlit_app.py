@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pandas as pd
 import streamlit as st
 
 from ung_forecast.ledger import ForecastLedger
@@ -89,7 +90,17 @@ if quality:
             st.write(f"**{key}:** {value}")
 if forecasts:
     st.subheader("Next five trading sessions")
-    st.dataframe(forecasts, use_container_width=True, hide_index=True)
+    st.caption("Low and high show the model's expected trading range. Close is the expected closing price.")
+    forecast_columns = {
+        "target_session": "Session", "model_name": "Model", "horizon": "Days ahead",
+        "predicted_low": "Forecast low", "expected_close": "Forecast close",
+        "predicted_high": "Forecast high", "probability_up": "Up probability",
+    }
+    forecast_table = pd.DataFrame(forecasts)[list(forecast_columns)].rename(columns=forecast_columns)
+    forecast_table["Up probability"] = (forecast_table["Up probability"] * 100).round(0).astype(str) + "%"
+    for column in ("Forecast low", "Forecast close", "Forecast high"):
+        forecast_table[column] = forecast_table[column].round(2)
+    st.dataframe(forecast_table, use_container_width=True, hide_index=True)
     chart_rows = {
         row["target_session"]: {
             "predicted_low": row["predicted_low"],
@@ -99,8 +110,9 @@ if forecasts:
         for row in forecasts if row["model_name"] == "ridge"
     }
     if chart_rows:
-        st.subheader("Ridge rolling range forecast")
+        st.subheader("Forecast range graphic — Ridge")
         st.line_chart(chart_rows, use_container_width=True)
+        st.caption("The area between Forecast low and Forecast high is the expected price range; Forecast close is the middle estimate.")
     cards = build_scorecards(ForecastLedger().outcomes())
     st.subheader("Individual model scorecards")
     if cards:
@@ -114,9 +126,15 @@ if forecasts:
             hide_index=True,
         )
         st.caption("Range coverage = percentage of sessions where the actual low and high stayed inside the forecast range.")
+        st.caption("Lower low/high errors are better. Narrower ranges are better only when coverage remains high.")
+        scorecard_frame = pd.DataFrame(cards)
+        st.subheader("Range accuracy at a glance")
+        chart_frame = scorecard_frame.pivot(index="model_name", columns="horizon", values="range_coverage")
+        chart_frame.columns = [f"{int(value)}d" for value in chart_frame.columns]
+        st.bar_chart(chart_frame, y_label="Range coverage (1.0 = 100%)")
     else:
         st.info("No matured forecasts yet; scorecards will populate as target sessions complete.")
-    weights = compute_model_weights(ledger.outcomes())
+    weights = compute_model_weights(ForecastLedger().outcomes())
     if weights:
         st.subheader("Learned model weights")
         st.dataframe(weights, use_container_width=True, hide_index=True)
