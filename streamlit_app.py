@@ -1,153 +1,109 @@
-"""Public read-only Streamlit dashboard for UNGMJ research."""
+"""Streamlit shell for the rolling UNG forecast system."""
 from __future__ import annotations
 
 import json
-import urllib.error
-import urllib.request
-from typing import Any
+from pathlib import Path
 
 import streamlit as st
 
-BASE = (
-    "https://raw.githubusercontent.com/marthandan77/UNGMJ/"
-    "research-state/data/ledger/"
-)
-USER_AGENT = "UNGMJ-Research-Dashboard/0.1"
+from ung_forecast.ledger import ForecastLedger
+from ung_forecast.context_data import combine_context_sources, fetch_cftc_positioning, fetch_eia_storage
+from ung_forecast.providers import compare_sources, fetch_nasdaq_ung, fetch_yahoo_ung
+from ung_forecast.rolling import generate_rolling_forecasts
+from ung_forecast.scorecards import build_scorecards
+from ung_forecast.weights import compute_model_weights
 
+st.set_page_config(page_title="UNG Forecast", page_icon="📈", layout="wide")
+st.title("UNG Rolling Forecast")
+st.caption("Daily and five-session research forecasts. Not investment advice.")
 
-def fetch_text(path: str) -> str:
-    request = urllib.request.Request(
-        BASE + path,
-        headers={"User-Agent": USER_AGENT, "Cache-Control": "no-cache"},
-    )
-    with urllib.request.urlopen(request, timeout=20) as response:
-        if response.status != 200:
-            raise RuntimeError(f"Could not load {path}: HTTP {response.status}")
-        return response.read().decode("utf-8")
-
-
-@st.cache_data(ttl=300, show_spinner=False)
-def load_json(path: str) -> dict[str, Any]:
-    return json.loads(fetch_text(path))
-
-
-@st.cache_data(ttl=300, show_spinner=False)
-def load_jsonl(path: str) -> list[dict[str, Any]]:
+run_report_path = Path("data/ledger/latest-run.json")
+if run_report_path.exists():
     try:
-        raw = fetch_text(path)
-    except urllib.error.HTTPError as exc:
-        if exc.code == 404:
-            return []
-        raise
-    return [json.loads(line) for line in raw.splitlines() if line.strip()]
+        persisted_report = json.loads(run_report_path.read_text(encoding="utf-8"))
+        st.caption(
+            f"Last scheduled run: {persisted_report.get('run_at', 'unknown')} | "
+            f"Status: {persisted_report.get('status', 'unknown')}"
+        )
+    except (OSError, json.JSONDecodeError):
+        st.warning("The latest run report exists but could not be read.")
 
-
-
-st.set_page_config(page_title="UNGMJ Research", page_icon="📈", layout="wide")
-
-st.title("UNGMJ — UNG ETF research forecasts")
-st.caption(
-    "Probabilistic research estimates for 1, 2, 3, and 5 trading sessions. "
-    "Not investment advice or trade instructions."
+st.info("Forecasts are provisional research outputs until enough matured scorecard history exists.")
+selected_models = st.multiselect(
+    "Models to run",
+    ["ridge", "hist_gradient_boosting", "random_forest", "extra_trees"],
+    default=["ridge"],
+    help="Ridge is fastest. Tree challengers provide independent scorecards but take longer.",
 )
-if st.button("Refresh data"):
-    load_json.clear()
-    load_jsonl.clear()
-    st.rerun()
-
-try:
-    report = load_json("latest-run.json")
-    forecasts = load_jsonl("forecasts.jsonl")
-    outcomes = load_jsonl("outcomes.jsonl")
-    invalidations = load_jsonl("invalidations.jsonl")
-    evaluation = load_json("evaluation.json")
-except Exception as exc:
-    st.error(f"Research data unavailable: {type(exc).__name__}: {exc}")
-    st.stop()
-
-invalidated = {
-    str(item["forecast_id"]): str(item.get("reason", "Invalidated"))
-    for item in invalidations
-}
-visible_forecasts = []
-for item in forecasts:
-    row = dict(item)
-    if str(item.get("forecast_id")) in invalidated:
-        row["status"] = "VOID"
-        row["invalidation_reason"] = invalidated[str(item["forecast_id"])]
-    visible_forecasts.append(row)
-
-status = str(report.get("status", "UNKNOWN"))
-st.subheader(f"Run status: {status}")
-st.write(
-    f"Run at: {report.get('run_at', 'unknown')} UTC  |  "
-    f"UNG session: {report.get('latest_ung_session', '—')}  |  "
-    f"Henry Hub session: {report.get('latest_henry_hub_session', '—')}"
-)
-if status != "READY":
-    st.warning(
-        "Forecasts are provisional or blocked. Independent UNG source confirmation, "
-        "data quality, and uncertainty calibration govern release status."
-    )
-if report.get("error"):
-    st.error(str(report["error"]))
-if report.get("run_validity_note"):
-    st.warning(str(report["run_validity_note"]))
-
-m1, m2, m3, m4 = st.columns(4)
-m1.metric("UNG history rows", str(report.get("ung_history_rows", "—")))
-m2.metric("Henry Hub rows", str(report.get("henry_hub_history_rows", "—")))
-m3.metric("Valid forecasts this run", str(report.get("valid_forecasts_emitted", report.get("forecasts_emitted", 0))))
-m4.metric("Matured outcomes", str(len(outcomes)))
-
-st.subheader("Latest forecast vintages")
-if visible_forecasts:
-    ordered = list(reversed(visible_forecasts[-100:]))
-    st.dataframe(
-        [
-            {
-                "Issued (UTC)": row.get("as_of"),
-                "Origin session": row.get("origin_session"),
-                "Horizon": f"{row.get('horizon_sessions')} sessions",
-                "Reference close": row.get("reference_close"),
-                "Expected close": row.get("expected_close"),
-                "P(up)": row.get("probability_up"),
-                "Predicted low": row.get("predicted_low"),
-                "Predicted high": row.get("predicted_high"),
-                "Calibration N": row.get("calibration_sample_count"),
-                "Calibration method": row.get("calibration_method"),
-                "Status": row.get("status"),
-                "Audit reason": row.get("invalidation_reason", ""),
+if st.button("Calculate latest forecast", type="primary", use_container_width=True):
+    with st.spinner("Fetching validated UNG data and calculating individual forecasts..."):
+        try:
+            fetched = fetch_nasdaq_ung()
+            confirmation = fetch_yahoo_ung()
+            agreement = compare_sources(fetched, confirmation)
+            context_frames = []
+            context_status = {}
+            for name, fetcher in (("EIA storage", fetch_eia_storage), ("CFTC positioning", fetch_cftc_positioning)):
+                try:
+                    context_frames.append(fetcher())
+                    context_status[name] = "AVAILABLE"
+                except Exception as context_exc:
+                    context_status[name] = f"UNAVAILABLE: {context_exc}"
+            ledger = ForecastLedger()
+            generated = generate_rolling_forecasts(
+                fetched.frame, context=combine_context_sources(context_frames),
+                model_names=selected_models or ("ridge",), ledger=ledger
+            )
+            ledger.score_matured(fetched.frame)
+            st.session_state["latest_forecasts"] = generated
+            st.session_state["latest_bars"] = fetched.frame.tail(120)
+            st.session_state["run_quality"] = {
+                "status": "READY" if len(context_frames) == 2 else "PROVISIONAL",
+                "agreement": agreement,
+                **context_status,
             }
-            for row in ordered
-        ],
-        use_container_width=True,
-        hide_index=True,
-    )
-else:
-    st.info("No forecast vintages are available yet.")
+            st.success(f"Generated {len(generated)} individual model forecasts.")
+        except Exception as exc:
+            st.error(f"Forecast blocked: {type(exc).__name__}: {exc}")
 
-st.subheader("Walk-forward evaluation")
-st.write(
-    f"Evaluation status: {evaluation.get('status', 'NOT RUN')}  |  "
-    f"Automatic model promotion: {evaluation.get('automatic_promotion', False)}"
-)
-summaries = report.get("evaluation", {}).get("summaries") or evaluation.get("summaries") or []
-if summaries:
-    st.dataframe(summaries, use_container_width=True, hide_index=True)
-else:
-    st.info("No evaluation summary is available in the latest report.")
+forecasts = st.session_state.get("latest_forecasts", [])
+quality = st.session_state.get("run_quality")
+if quality:
+    st.subheader("Latest run quality")
+    q1, q2, q3 = st.columns(3)
+    q1.metric("Status", quality["status"])
+    q2.metric("UNG providers", "CONFIRMED")
+    q3.metric("Context sources", f"{sum(value == 'AVAILABLE' for key, value in quality.items() if key not in ('status', 'agreement'))}/2")
+    st.caption(quality["agreement"])
+    for key, value in quality.items():
+        if key not in ("status", "agreement"):
+            st.write(f"**{key}:** {value}")
+if forecasts:
+    st.subheader("Next five trading sessions")
+    st.dataframe(forecasts, use_container_width=True, hide_index=True)
+    chart_rows = {
+        row["target_session"]: {
+            "predicted_low": row["predicted_low"],
+            "expected_close": row["expected_close"],
+            "predicted_high": row["predicted_high"],
+        }
+        for row in forecasts if row["model_name"] == "ridge"
+    }
+    if chart_rows:
+        st.subheader("Ridge rolling range forecast")
+        st.line_chart(chart_rows, use_container_width=True)
+    cards = build_scorecards(ForecastLedger().outcomes())
+    st.subheader("Individual model scorecards")
+    if cards:
+        st.dataframe(cards, use_container_width=True, hide_index=True)
+    else:
+        st.info("No matured forecasts yet; scorecards will populate as target sessions complete.")
+    weights = compute_model_weights(ledger.outcomes())
+    if weights:
+        st.subheader("Learned model weights")
+        st.dataframe(weights, use_container_width=True, hide_index=True)
+    else:
+        st.info("Model weights remain neutral until sufficient matured out-of-sample evidence exists.")
 
-st.subheader("Matured outcome scoring")
-if outcomes:
-    st.dataframe(list(reversed(outcomes[-100:])), use_container_width=True, hide_index=True)
-else:
-    st.info("No forecast horizon has matured yet. Outcomes are scored once after maturity.")
-
-st.subheader("Data and governance")
-st.write(
-    "Target: UNG ETF. Henry Hub daily spot is explanatory only. Weather, paid data feeds, "
-    "broker integration, order execution, and email are excluded. Ridge remains the fixed "
-    "baseline; challengers stay shadow-only. All evaluation is chronological and purged. "
-    "Invalidated validation vintages remain in the audit ledger but are excluded from scoring."
-)
+st.subheader("Planned output")
+st.write("Each run displays separate forecasts for each model and horizon; no model is hidden behind an ensemble.")
