@@ -57,5 +57,5 @@ def test_scores_realized_five_session_low_high_range(tmp_path):
     assert outcome["range_covered"] == False
     assert outcome["low_range_error"] < 0
     assert outcome["high_range_error"] > 0
-    assert outcome["low_price_absolute_error"] == 0.3
-    assert outcome["high_price_absolute_error"] == 0.2
+    assert abs(float(outcome["low_price_absolute_error"]) - 0.3) < 1e-9
+    assert abs(float(outcome["high_price_absolute_error"]) - 0.2) < 1e-9
