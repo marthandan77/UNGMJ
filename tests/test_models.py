@@ -22,6 +22,7 @@ def test_models_return_individual_forecast() -> None:
 def test_scorecard_is_separate_from_forecast() -> None:
     scored = score_forecast({"predicted_low": 9, "expected_close": 10, "predicted_high": 11}, 9.5, 10.2, 10.8)
     assert scored["range_contains_day"] is True
+    assert scored["predicted_range_width"] == 2.0
 
 
 def test_tree_models_are_individual_models() -> None:

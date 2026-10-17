@@ -96,6 +96,8 @@ def score_forecast(forecast: dict, actual_low: float, actual_close: float, actua
         "low_error": low_error,
         "close_error": close_error,
         "high_error": high_error,
+        "predicted_range_width": float(forecast["predicted_high"]) - float(forecast["predicted_low"]),
+        "actual_range_width": actual_high - actual_low,
         "range_contains_close": bool(forecast["predicted_low"] <= actual_close <= forecast["predicted_high"]),
         "range_contains_day": bool(forecast["predicted_low"] <= actual_low and actual_high <= forecast["predicted_high"]),
     }

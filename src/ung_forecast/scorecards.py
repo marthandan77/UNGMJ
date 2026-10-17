@@ -18,6 +18,7 @@ def build_scorecards(outcomes: list[dict[str, Any]]) -> list[dict[str, Any]]:
             return {
                 "mean_abs_close_error": sum(abs(float(r["close_error"])) for r in sample) / count,
                 "range_coverage": sum(bool(r["range_contains_day"]) for r in sample) / count,
+                "average_range_width": sum(float(r.get("predicted_range_width", 0.0)) for r in sample) / count,
             }
         all_metrics = metrics(rows)
         recent_20 = metrics(rows[-20:]) if len(rows) >= 20 else {"mean_abs_close_error": None, "range_coverage": None}
@@ -30,6 +31,7 @@ def build_scorecards(outcomes: list[dict[str, Any]]) -> list[dict[str, Any]]:
             "mean_abs_low_error": sum(abs(float(r["low_error"])) for r in rows) / n,
             "mean_abs_high_error": sum(abs(float(r["high_error"])) for r in rows) / n,
             "range_coverage": all_metrics["range_coverage"],
+            "average_range_width": all_metrics["average_range_width"],
             "close_coverage": sum(bool(r.get("range_contains_close", False)) for r in rows) / n,
             "recent_20_abs_close_error": recent_20["mean_abs_close_error"],
             "recent_20_range_coverage": recent_20["range_coverage"],

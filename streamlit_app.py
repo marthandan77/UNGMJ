@@ -104,7 +104,16 @@ if forecasts:
     cards = build_scorecards(ForecastLedger().outcomes())
     st.subheader("Individual model scorecards")
     if cards:
-        st.dataframe(cards, use_container_width=True, hide_index=True)
+        scorecard_columns = [
+            "model_name", "horizon", "matured_forecasts", "range_coverage",
+            "mean_abs_low_error", "mean_abs_high_error", "average_range_width", "status",
+        ]
+        st.dataframe(
+            [{key: row.get(key) for key in scorecard_columns} for row in cards],
+            use_container_width=True,
+            hide_index=True,
+        )
+        st.caption("Range coverage = percentage of sessions where the actual low and high stayed inside the forecast range.")
     else:
         st.info("No matured forecasts yet; scorecards will populate as target sessions complete.")
     weights = compute_model_weights(ledger.outcomes())
