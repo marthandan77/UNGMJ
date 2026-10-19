@@ -30,6 +30,12 @@ The Streamlit dashboard allows selecting individual models. The scheduled GitHub
 runner evaluates all configured challenger models and persists immutable forecast/outcome
 ledgers under `data/ledger/`.
 
+The dashboard's **Market input availability** table shows the latest UNG provider checks,
+EIA storage and CFTC positioning observations, plus the latest EIA Henry Hub spot value.
+Henry Hub is reference-only until its historical publication times are verified. Market
+depth and other unconfigured inputs are labeled as unavailable rather than treated as
+forecast features.
+
 ## Validation
 
 ```powershell

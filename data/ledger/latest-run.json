@@ -1,5 +1,5 @@
 {
-  "run_at": "2026-10-17T14:59:26.038189+00:00",
+  "run_at": "2026-10-19T06:48:57.410594+00:00",
   "status": "READY",
   "provider": "nasdaq",
   "agreement": "confirmed 2026-10-16 with 2514 overlapping sessions",
@@ -7,6 +7,92 @@
     "eia_storage": "AVAILABLE",
     "cftc_positioning": "AVAILABLE"
   },
+  "data_feeds": [
+    {
+      "source": "Nasdaq UNG",
+      "status": "AVAILABLE",
+      "latest_observation": "2026-10-16",
+      "latest_value": "$10.66 close",
+      "available_at": "Completed daily session; source does not expose a precise publication time",
+      "retrieved_at": "2026-10-19T06:47:53.541640Z",
+      "rows": 2514,
+      "role": "Primary UNG OHLCV",
+      "source_url": "https://api.nasdaq.com/api/quote/UNG/historical?assetclass=etf&fromdate=2007-04-18&todate=2026-10-19&limit=5000",
+      "note": ""
+    },
+    {
+      "source": "Yahoo UNG",
+      "status": "AVAILABLE",
+      "latest_observation": "2026-10-16",
+      "latest_value": "$10.66 close",
+      "available_at": "Completed daily session; source does not expose a precise publication time",
+      "retrieved_at": "2026-10-19T06:47:53.934114Z",
+      "rows": 4907,
+      "role": "Independent price confirmation",
+      "source_url": "https://query1.finance.yahoo.com/v8/finance/chart/UNG?period1=1176854400&period2=1792392473&interval=1d&events=div%2Csplits",
+      "note": ""
+    },
+    {
+      "source": "EIA storage",
+      "status": "AVAILABLE",
+      "latest_observation": "2026-10-09",
+      "latest_value": "3,567 Bcf",
+      "available_at": "2026-10-15T15:30:00Z",
+      "retrieved_at": null,
+      "rows": 876,
+      "role": "Context feed",
+      "source_url": "",
+      "note": "Current release timestamp comes from the workbook/API rule. Historical workbook rows inherit the current workbook release date, so they are not point-in-time history."
+    },
+    {
+      "source": "CFTC natural-gas positioning",
+      "status": "AVAILABLE",
+      "latest_observation": "2026-10-13",
+      "latest_value": "managed_money_net: -13.4% of OI; producer_merchant_net: 12.6% of OI",
+      "available_at": "2026-10-17T21:00:00Z",
+      "retrieved_at": null,
+      "rows": 245,
+      "role": "Context feed",
+      "source_url": "",
+      "note": "Availability uses the collector's conservative report-date + 4 days, 21:00 UTC rule; the archive does not provide exact historical publication timestamps."
+    },
+    {
+      "source": "EIA Henry Hub spot",
+      "status": "AVAILABLE",
+      "latest_observation": "2026-10-14",
+      "latest_value": "$3.22/MMBtu",
+      "available_at": "EIA workbook release date: 2026-10-15 (date only)",
+      "retrieved_at": "2026-10-19T06:48:17.726423Z",
+      "rows": 5708,
+      "role": "Reference only; excluded from forecast features",
+      "source_url": "https://www.eia.gov/dnav/ng/hist_xls/RNGWHHDd.xls",
+      "note": "Workbook lacks per-observation publication timestamps; historical point-in-time use is not validated."
+    },
+    {
+      "source": "Market depth",
+      "status": "NOT_CONNECTED",
+      "latest_observation": "\u2014",
+      "latest_value": "\u2014",
+      "available_at": "\u2014",
+      "retrieved_at": null,
+      "rows": 0,
+      "role": "Not used by forecast",
+      "source_url": "",
+      "note": "No depth feed is configured in the daily UNG collector."
+    },
+    {
+      "source": "Weather / LNG / production",
+      "status": "NOT_CONFIGURED",
+      "latest_observation": "\u2014",
+      "latest_value": "\u2014",
+      "available_at": "\u2014",
+      "retrieved_at": null,
+      "rows": 0,
+      "role": "Not used by forecast",
+      "source_url": "",
+      "note": "No point-in-time provider is configured for these inputs."
+    }
+  ],
   "latest_session": "2026-10-16",
   "history_rows": 2514,
   "forecasts": 20,

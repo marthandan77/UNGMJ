@@ -8,13 +8,28 @@ import zipfile
 from io import StringIO
 import urllib.parse
 import urllib.request
-from datetime import datetime, timezone
+from dataclasses import dataclass
+from datetime import date, datetime, timezone
+import hashlib
 from typing import Any
 
 import pandas as pd
 from io import BytesIO
 
 from .contracts import DataValidationError
+
+
+@dataclass(frozen=True, slots=True)
+class HenryHubSpotSnapshot:
+    """Latest EIA Henry Hub spot observation for display and provenance."""
+
+    observation_date: date
+    spot_usd_per_mmbtu: float
+    published_date: date
+    retrieved_at: datetime
+    rows: int
+    source_url: str
+    content_sha256: str
 
 
 def _download_json(url: str) -> dict[str, Any]:
@@ -93,6 +108,61 @@ def fetch_eia_storage_xls() -> pd.DataFrame:
     if len(frame) < 100 or (frame["storage_bcf"] <= 0).any():
         raise DataValidationError("EIA storage workbook is empty, short, or non-positive")
     return frame[["storage_bcf", "available_at"]]
+
+
+def fetch_eia_henry_hub_spot() -> HenryHubSpotSnapshot:
+    """Fetch the latest official daily Henry Hub spot value for dashboard display.
+
+    The workbook provides a release date but not historical per-observation
+    publication timestamps. This snapshot is therefore not passed into model
+    features; the UI labels it as reference data only.
+    """
+    url = "https://www.eia.gov/dnav/ng/hist_xls/RNGWHHDd.xls"
+    request = urllib.request.Request(url, headers={"User-Agent": "UNG-Forecast/0.1"})
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            if response.status != 200:
+                raise DataValidationError(f"HTTP {response.status}: EIA Henry Hub workbook")
+            raw = response.read()
+        workbook = pd.ExcelFile(BytesIO(raw), engine="xlrd")
+        contents = pd.read_excel(workbook, sheet_name="Contents", header=None)
+        data = pd.read_excel(workbook, sheet_name="Data 1", header=None)
+        release_rows = contents[
+            contents.astype(str).apply(
+                lambda row: row.str.contains("Release Date:", regex=False).any(), axis=1
+            )
+        ]
+        if release_rows.empty:
+            raise ValueError("release date missing")
+        release_text = release_rows.iloc[0].dropna().astype(str).iloc[-1]
+        published_date = pd.to_datetime(release_text, errors="raise").date()
+        if data.shape[1] < 2 or str(data.iloc[2, 0]).strip().lower() != "date":
+            raise ValueError("unexpected Data 1 layout")
+        frame = pd.DataFrame({
+            "observation_date": pd.to_datetime(data.iloc[3:, 0], errors="coerce"),
+            "spot_usd_per_mmbtu": pd.to_numeric(data.iloc[3:, 1], errors="coerce"),
+        }).dropna()
+        frame = frame.sort_values("observation_date")
+        if frame.empty or frame["observation_date"].duplicated().any():
+            raise ValueError("Henry Hub history is empty or duplicated")
+        latest = frame.iloc[-1]
+        value = float(latest["spot_usd_per_mmbtu"])
+        observation_date = pd.Timestamp(latest["observation_date"]).date()
+        if value <= 0 or observation_date > published_date:
+            raise ValueError("Henry Hub latest observation is invalid")
+    except Exception as exc:
+        if isinstance(exc, DataValidationError):
+            raise
+        raise DataValidationError(f"EIA Henry Hub workbook invalid: {type(exc).__name__}: {exc}") from exc
+    return HenryHubSpotSnapshot(
+        observation_date=observation_date,
+        spot_usd_per_mmbtu=value,
+        published_date=published_date,
+        retrieved_at=datetime.now(timezone.utc),
+        rows=len(frame),
+        source_url=url,
+        content_sha256=hashlib.sha256(raw).hexdigest(),
+    )
 
 
 def make_point_in_time_context(
