@@ -8,6 +8,8 @@ Professional research system for daily low/close/high forecasts across the next 
 - Fail closed on stale, malformed, incomplete, or unconfirmed data.
 - Every model produces an individual forecast and scorecard.
 - Forecast vintages are immutable and scored only after their target session matures.
+- Matured out-of-sample errors calibrate future forecast ranges and, after 20 observations
+  per model and horizon, drive a separately reported adaptive consensus using recent scores.
 - The system is research-only and does not execute trades.
 
 ## Development
@@ -29,6 +31,11 @@ Copy `.env.example` into your deployment secret store; do not commit credentials
 The Streamlit dashboard allows selecting individual models. The scheduled GitHub Actions
 runner evaluates all configured challenger models and persists immutable forecast/outcome
 ledgers under `data/ledger/`.
+
+The scheduled runner refits candidate models from the latest available daily history. The
+adaptive consensus uses only previously matured outcomes; its own outcomes are scored for
+monitoring but are excluded from the base-model weight calculation. This is a transparent
+feedback loop, not a guarantee of predictive accuracy.
 
 The dashboard's **Market input availability** table shows the latest UNG provider checks,
 EIA storage and CFTC positioning observations, plus the latest EIA Henry Hub spot value.

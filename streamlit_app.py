@@ -41,7 +41,10 @@ if run_report_path.exists():
     except (OSError, json.JSONDecodeError):
         st.warning("The latest run report exists but could not be read.")
 
-st.info("Forecasts are provisional research outputs until enough matured scorecard history exists.")
+st.info(
+    "Forecasts are provisional research outputs. After 20 matured outcomes per model and horizon, "
+    "recent performance can inform the separately labeled adaptive consensus."
+)
 selected_models = st.multiselect(
     "Models to run",
     ["ridge", "hist_gradient_boosting", "random_forest", "extra_trees"],
@@ -118,11 +121,11 @@ if st.button("Calculate latest forecast", type="primary", use_container_width=Tr
                 ),
             ])
             ledger = ForecastLedger()
+            ledger.score_matured(fetched.frame)
             generated = generate_rolling_forecasts(
                 fetched.frame, context=combine_context_sources(context_frames),
                 model_names=selected_models or ("ridge",), ledger=ledger
             )
-            ledger.score_matured(fetched.frame)
             st.session_state["latest_forecasts"] = generated
             st.session_state["latest_bars"] = fetched.frame.tail(120)
             st.session_state["run_quality"] = {
@@ -176,8 +179,15 @@ if forecasts:
         "target_session": "Session", "model_name": "Model", "horizon": "Days ahead",
         "predicted_low": "Forecast low", "expected_close": "Forecast close",
         "predicted_high": "Forecast high", "probability_up": "Up probability",
+        "calibration_status": "Range calibration",
+        "calibration_sample_count": "Calibration samples",
+        "learning_sample_count": "Consensus samples",
     }
-    forecast_table = pd.DataFrame(forecasts)[list(forecast_columns)].rename(columns=forecast_columns)
+    forecast_data = pd.DataFrame(forecasts)
+    for column in forecast_columns:
+        if column not in forecast_data:
+            forecast_data[column] = "—"
+    forecast_table = forecast_data[list(forecast_columns)].rename(columns=forecast_columns)
     forecast_table["Up probability"] = (forecast_table["Up probability"] * 100).round(0).astype(str) + "%"
     for column in ("Forecast low", "Forecast close", "Forecast high"):
         forecast_table[column] = forecast_table[column].round(2)
@@ -219,8 +229,15 @@ if forecasts:
     if weights:
         st.subheader("Learned model weights")
         st.dataframe(weights, use_container_width=True, hide_index=True)
+        st.caption(
+            "Weights use inverse close error from the most recent matured forecasts, separately by horizon. "
+            "At least 20 outcomes are required per model and horizon; the adaptive consensus is scored separately."
+        )
     else:
         st.info("Model weights remain neutral until sufficient matured out-of-sample evidence exists.")
 
 st.subheader("Planned output")
-st.write("Each run displays separate forecasts for each model and horizon; no model is hidden behind an ensemble.")
+st.write(
+    "Each run keeps individual model forecasts visible. Once enough matured evidence exists, "
+    "a separately labeled adaptive consensus uses recent model scores; its outcomes do not train its own weights."
+)

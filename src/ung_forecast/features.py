@@ -39,15 +39,25 @@ def build_features(
     if context is not None:
         if "available_at" not in context.columns:
             raise ValueError("context must contain available_at")
-        available = context.sort_values("available_at").copy()
-        left = pd.DataFrame({"session": out.index}).sort_values("session")
-        available["available_at"] = pd.to_datetime(available["available_at"], utc=True).dt.tz_convert(None)
-        right = available.reset_index(drop=False)
-        merged = pd.merge_asof(left, right, left_on="session", right_on="available_at", direction="backward")
-        merged.index = out.index
         for column in ("storage_bcf", "managed_money_net_pct_oi", "producer_merchant_net_pct_oi"):
-            if column in merged:
-                out[column] = merged[column].to_numpy()
+            if column not in context:
+                continue
+            # Align each feed independently. A shared as-of join can replace an
+            # EIA value with a CFTC row whose EIA field is null (and vice versa).
+            available = context.sort_index()[["available_at", column]].dropna(
+                subset=["available_at", column]
+            ).copy()
+            available["available_at"] = pd.to_datetime(
+                available["available_at"], utc=True
+            ).dt.tz_convert(None)
+            available = available.sort_values("available_at", kind="stable").drop_duplicates(
+                "available_at", keep="last"
+            )
+            left = pd.DataFrame({"session": pd.to_datetime(out.index)}).sort_values("session")
+            merged = pd.merge_asof(
+                left, available, left_on="session", right_on="available_at", direction="backward"
+            )
+            out[column] = merged[column].to_numpy()
     return out.replace([np.inf, -np.inf], np.nan)
 
 

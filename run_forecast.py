@@ -84,11 +84,12 @@ def main() -> None:
             "UNG_MODELS", "ridge,hist_gradient_boosting,random_forest,extra_trees"
         ).split(",") if name.strip()
     )
+    # Score completed target sessions before training this run's adaptive layer.
+    scored = ledger.score_matured(fetched.frame)
     rows = generate_rolling_forecasts(
         fetched.frame, context=features_context, ledger=ledger,
         model_names=configured_models,
     )
-    scored = ledger.score_matured(fetched.frame)
     report = {
         "run_at": datetime.now(timezone.utc).isoformat(),
         "status": "READY" if len(context) == 2 else "PROVISIONAL",

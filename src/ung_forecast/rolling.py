@@ -13,6 +13,7 @@ from .calibration import calibrate_range
 from .ledger import ForecastLedger
 from .models import fit_individual_forecast
 from .sessions import next_sessions
+from .weights import build_adaptive_consensus, compute_model_weights
 
 
 def generate_rolling_forecasts(
@@ -29,6 +30,7 @@ def generate_rolling_forecasts(
     if model_names is None:
         configured = os.getenv("UNG_MODELS", "ridge")
         model_names = tuple(name.strip() for name in configured.split(",") if name.strip())
+    model_names = tuple(dict.fromkeys(model_names))
     features = build_features(ung, henry_hub, context)
     latest_session = ung.index[-1]
     issued_at = datetime.now(timezone.utc).isoformat()
@@ -64,4 +66,18 @@ def generate_rolling_forecasts(
                 output[-1] = record
             if ledger is not None:
                 ledger.append_forecast(record)
+    if ledger is not None:
+        # Only matured outcomes from earlier forecasts can influence today's
+        # adaptive consensus. Every individual model forecast remains visible.
+        learned_weights = compute_model_weights(ledger.outcomes())
+        for consensus in build_adaptive_consensus(output, learned_weights):
+            identity = (
+                f"{consensus['origin_session']}|{consensus['target_session']}|"
+                f"{consensus['model_name']}|{consensus['horizon']}"
+            )
+            consensus["forecast_id"] = "UNG-" + hashlib.sha256(identity.encode()).hexdigest()[:20]
+            consensus["issued_at"] = issued_at
+            consensus = calibrate_range(consensus, ledger.outcomes())
+            output.append(consensus)
+            ledger.append_forecast(consensus)
     return output
