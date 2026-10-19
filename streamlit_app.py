@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pandas as pd
@@ -35,8 +36,9 @@ if run_report_path.exists():
     try:
         persisted_report = json.loads(run_report_path.read_text(encoding="utf-8"))
         st.caption(
-            f"Last scheduled run: {persisted_report.get('run_at', 'unknown')} | "
-            f"Status: {persisted_report.get('status', 'unknown')}"
+            f"Latest scan: {persisted_report.get('run_at', 'unknown')} | "
+            f"Status: {persisted_report.get('status', 'unknown')} | "
+            f"Source: {persisted_report.get('trigger', 'scheduled run')}"
         )
     except (OSError, json.JSONDecodeError):
         st.warning("The latest run report exists but could not be read.")
@@ -48,11 +50,11 @@ st.info(
 selected_models = st.multiselect(
     "Models to run",
     ["ridge", "hist_gradient_boosting", "random_forest", "extra_trees"],
-    default=["ridge"],
-    help="Ridge is fastest. Tree challengers provide independent scorecards but take longer.",
+    default=["ridge", "hist_gradient_boosting", "random_forest", "extra_trees"],
+    help="Scan runs all four models by default. Select fewer to make a scan faster.",
 )
-if st.button("Calculate latest forecast", type="primary", use_container_width=True):
-    with st.spinner("Fetching validated UNG data and calculating individual forecasts..."):
+if st.button("Scan", type="primary", use_container_width=True):
+    with st.spinner("Scanning configured feeds, scoring completed forecasts, and updating models..."):
         try:
             fetched = fetch_nasdaq_ung()
             # Nasdaq is the primary source. Yahoo is an independent health check,
@@ -121,21 +123,54 @@ if st.button("Calculate latest forecast", type="primary", use_container_width=Tr
                 ),
             ])
             ledger = ForecastLedger()
-            ledger.score_matured(fetched.frame)
+            scored = ledger.score_matured(fetched.frame)
             generated = generate_rolling_forecasts(
                 fetched.frame, context=combine_context_sources(context_frames),
                 model_names=selected_models or ("ridge",), ledger=ledger
             )
+            report = {
+                "run_at": datetime.now(timezone.utc).isoformat(),
+                "trigger": "manual_scan",
+                "status": "READY" if len(context_frames) == 2 and provider_status == "CONFIRMED" else "PROVISIONAL",
+                "provider": fetched.snapshot.provider,
+                "provider_status": provider_status,
+                "agreement": agreement,
+                "context": context_status,
+                "context_source_count": sum(value == "AVAILABLE" for value in context_status.values()),
+                "data_feeds": data_feeds,
+                "latest_session": str(fetched.frame.index[-1].date()),
+                "history_rows": len(fetched.frame),
+                "forecasts": len(generated),
+                "scored": scored,
+                "ledger_forecasts": len(ledger.forecasts()),
+                "ledger_outcomes": len(ledger.outcomes()),
+                "model_weights": compute_model_weights(ledger.outcomes()),
+            }
+            try:
+                run_report_path.parent.mkdir(parents=True, exist_ok=True)
+                temporary_report_path = run_report_path.with_suffix(".json.tmp")
+                temporary_report_path.write_text(
+                    json.dumps(report, indent=2) + "\n", encoding="utf-8"
+                )
+                temporary_report_path.replace(run_report_path)
+            except OSError as report_exc:
+                st.warning(
+                    "Scan results are available in this app session; run report could not be saved "
+                    f"({type(report_exc).__name__})."
+                )
             st.session_state["latest_forecasts"] = generated
             st.session_state["latest_bars"] = fetched.frame.tail(120)
             st.session_state["run_quality"] = {
-                "status": "READY" if len(context_frames) == 2 and provider_status == "CONFIRMED" else "PROVISIONAL",
+                "status": report["status"],
                 "provider_status": provider_status,
                 "agreement": agreement,
                 "context_source_count": sum(value == "AVAILABLE" for value in context_status.values()),
                 "data_feeds": data_feeds,
             }
-            st.success(f"Generated {len(generated)} individual model forecasts.")
+            st.success(
+                f"Scan complete: {len(data_feeds)} feed statuses refreshed, {scored} matured forecasts scored, "
+                f"and {len(generated)} forecast rows updated."
+            )
         except Exception as exc:
             st.error(f"Forecast blocked: {type(exc).__name__}: {exc}")
 

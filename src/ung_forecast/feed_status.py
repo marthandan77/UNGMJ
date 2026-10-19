@@ -1,6 +1,7 @@
 """Serializable feed summaries for the research dashboard and run report."""
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Any
 
 import pandas as pd
@@ -65,7 +66,7 @@ def describe_context_feed(
         "latest_observation": observation,
         "latest_value": "; ".join(values) or "",
         "available_at": available_at or "Unavailable",
-        "retrieved_at": None,
+        "retrieved_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "rows": len(frame),
         "role": "Context feed",
         "source_url": source_url,

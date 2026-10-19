@@ -43,6 +43,11 @@ Henry Hub is reference-only until its historical publication times are verified.
 depth and other unconfigured inputs are labeled as unavailable rather than treated as
 forecast features.
 
+Click **Scan** to fetch all configured feeds, score forecasts whose target sessions have
+completed, refit the selected models (all four are selected by default), and refresh the
+forecast, scorecard, feed inventory, and run report. Market depth and other unconfigured
+sources remain unavailable until providers are added.
+
 ## Validation
 
 ```powershell

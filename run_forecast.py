@@ -92,6 +92,7 @@ def main() -> None:
     )
     report = {
         "run_at": datetime.now(timezone.utc).isoformat(),
+        "trigger": "scheduled_run",
         "status": "READY" if len(context) == 2 else "PROVISIONAL",
         "provider": fetched.snapshot.provider,
         "agreement": agreement,
