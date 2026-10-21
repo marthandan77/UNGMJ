@@ -1,8 +1,9 @@
 {
-  "run_at": "2026-10-19T06:48:57.410594+00:00",
+  "run_at": "2026-10-21T00:44:39.146569+00:00",
+  "trigger": "scheduled_run",
   "status": "READY",
   "provider": "nasdaq",
-  "agreement": "confirmed 2026-10-16 with 2514 overlapping sessions",
+  "agreement": "confirmed 2026-10-19 with 2513 overlapping sessions",
   "context": {
     "eia_storage": "AVAILABLE",
     "cftc_positioning": "AVAILABLE"
@@ -11,25 +12,25 @@
     {
       "source": "Nasdaq UNG",
       "status": "AVAILABLE",
-      "latest_observation": "2026-10-16",
-      "latest_value": "$10.66 close",
+      "latest_observation": "2026-10-19",
+      "latest_value": "$10.46 close",
       "available_at": "Completed daily session; source does not expose a precise publication time",
-      "retrieved_at": "2026-10-19T06:47:53.541640Z",
-      "rows": 2514,
+      "retrieved_at": "2026-10-21T00:43:38.306104Z",
+      "rows": 2513,
       "role": "Primary UNG OHLCV",
-      "source_url": "https://api.nasdaq.com/api/quote/UNG/historical?assetclass=etf&fromdate=2007-04-18&todate=2026-10-19&limit=5000",
+      "source_url": "https://api.nasdaq.com/api/quote/UNG/historical?assetclass=etf&fromdate=2007-04-18&todate=2026-10-21&limit=5000",
       "note": ""
     },
     {
       "source": "Yahoo UNG",
       "status": "AVAILABLE",
-      "latest_observation": "2026-10-16",
-      "latest_value": "$10.66 close",
+      "latest_observation": "2026-10-19",
+      "latest_value": "$10.46 close",
       "available_at": "Completed daily session; source does not expose a precise publication time",
-      "retrieved_at": "2026-10-19T06:47:53.934114Z",
-      "rows": 4907,
+      "retrieved_at": "2026-10-21T00:43:38.473944Z",
+      "rows": 4908,
       "role": "Independent price confirmation",
-      "source_url": "https://query1.finance.yahoo.com/v8/finance/chart/UNG?period1=1176854400&period2=1792392473&interval=1d&events=div%2Csplits",
+      "source_url": "https://query1.finance.yahoo.com/v8/finance/chart/UNG?period1=1176854400&period2=1792543418&interval=1d&events=div%2Csplits",
       "note": ""
     },
     {
@@ -38,10 +39,10 @@
       "latest_observation": "2026-10-09",
       "latest_value": "3,567 Bcf",
       "available_at": "2026-10-15T15:30:00Z",
-      "retrieved_at": null,
+      "retrieved_at": "2026-10-21T00:43:47.602978Z",
       "rows": 876,
       "role": "Context feed",
-      "source_url": "",
+      "source_url": "https://www.eia.gov/dnav/ng/NG_STOR_WKLY_S1_W.htm",
       "note": "Current release timestamp comes from the workbook/API rule. Historical workbook rows inherit the current workbook release date, so they are not point-in-time history."
     },
     {
@@ -50,10 +51,10 @@
       "latest_observation": "2026-10-13",
       "latest_value": "managed_money_net: -13.4% of OI; producer_merchant_net: 12.6% of OI",
       "available_at": "2026-10-17T21:00:00Z",
-      "retrieved_at": null,
+      "retrieved_at": "2026-10-21T00:43:49.121263Z",
       "rows": 245,
       "role": "Context feed",
-      "source_url": "",
+      "source_url": "https://www.cftc.gov/dea/futures/nat_gas_lf.htm",
       "note": "Availability uses the collector's conservative report-date + 4 days, 21:00 UTC rule; the archive does not provide exact historical publication timestamps."
     },
     {
@@ -62,7 +63,7 @@
       "latest_observation": "2026-10-14",
       "latest_value": "$3.22/MMBtu",
       "available_at": "EIA workbook release date: 2026-10-15 (date only)",
-      "retrieved_at": "2026-10-19T06:48:17.726423Z",
+      "retrieved_at": "2026-10-21T00:43:57.234099Z",
       "rows": 5708,
       "role": "Reference only; excluded from forecast features",
       "source_url": "https://www.eia.gov/dnav/ng/hist_xls/RNGWHHDd.xls",
@@ -93,11 +94,11 @@
       "note": "No point-in-time provider is configured for these inputs."
     }
   ],
-  "latest_session": "2026-10-16",
-  "history_rows": 2514,
+  "latest_session": "2026-10-19",
+  "history_rows": 2513,
   "forecasts": 20,
-  "scored": 0,
-  "ledger_forecasts": 20,
-  "ledger_outcomes": 0,
+  "scored": 4,
+  "ledger_forecasts": 40,
+  "ledger_outcomes": 4,
   "model_weights": []
 }
