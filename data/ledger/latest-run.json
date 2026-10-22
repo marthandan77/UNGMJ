@@ -1,9 +1,9 @@
 {
-  "run_at": "2026-10-21T00:44:39.146569+00:00",
+  "run_at": "2026-10-22T00:47:49.193141+00:00",
   "trigger": "scheduled_run",
   "status": "READY",
   "provider": "nasdaq",
-  "agreement": "confirmed 2026-10-19 with 2513 overlapping sessions",
+  "agreement": "confirmed 2026-10-20 with 2513 overlapping sessions",
   "context": {
     "eia_storage": "AVAILABLE",
     "cftc_positioning": "AVAILABLE"
@@ -12,25 +12,25 @@
     {
       "source": "Nasdaq UNG",
       "status": "AVAILABLE",
-      "latest_observation": "2026-10-19",
-      "latest_value": "$10.46 close",
+      "latest_observation": "2026-10-20",
+      "latest_value": "$10.50 close",
       "available_at": "Completed daily session; source does not expose a precise publication time",
-      "retrieved_at": "2026-10-21T00:43:38.306104Z",
+      "retrieved_at": "2026-10-22T00:47:04.742788Z",
       "rows": 2513,
       "role": "Primary UNG OHLCV",
-      "source_url": "https://api.nasdaq.com/api/quote/UNG/historical?assetclass=etf&fromdate=2007-04-18&todate=2026-10-21&limit=5000",
+      "source_url": "https://api.nasdaq.com/api/quote/UNG/historical?assetclass=etf&fromdate=2007-04-18&todate=2026-10-22&limit=5000",
       "note": ""
     },
     {
       "source": "Yahoo UNG",
       "status": "AVAILABLE",
-      "latest_observation": "2026-10-19",
-      "latest_value": "$10.46 close",
+      "latest_observation": "2026-10-20",
+      "latest_value": "$10.50 close",
       "available_at": "Completed daily session; source does not expose a precise publication time",
-      "retrieved_at": "2026-10-21T00:43:38.473944Z",
-      "rows": 4908,
+      "retrieved_at": "2026-10-22T00:47:05.020699Z",
+      "rows": 4909,
       "role": "Independent price confirmation",
-      "source_url": "https://query1.finance.yahoo.com/v8/finance/chart/UNG?period1=1176854400&period2=1792543418&interval=1d&events=div%2Csplits",
+      "source_url": "https://query1.finance.yahoo.com/v8/finance/chart/UNG?period1=1176854400&period2=1792630024&interval=1d&events=div%2Csplits",
       "note": ""
     },
     {
@@ -39,7 +39,7 @@
       "latest_observation": "2026-10-09",
       "latest_value": "3,567 Bcf",
       "available_at": "2026-10-15T15:30:00Z",
-      "retrieved_at": "2026-10-21T00:43:47.602978Z",
+      "retrieved_at": "2026-10-22T00:47:05.156977Z",
       "rows": 876,
       "role": "Context feed",
       "source_url": "https://www.eia.gov/dnav/ng/NG_STOR_WKLY_S1_W.htm",
@@ -51,7 +51,7 @@
       "latest_observation": "2026-10-13",
       "latest_value": "managed_money_net: -13.4% of OI; producer_merchant_net: 12.6% of OI",
       "available_at": "2026-10-17T21:00:00Z",
-      "retrieved_at": "2026-10-21T00:43:49.121263Z",
+      "retrieved_at": "2026-10-22T00:47:07.081218Z",
       "rows": 245,
       "role": "Context feed",
       "source_url": "https://www.cftc.gov/dea/futures/nat_gas_lf.htm",
@@ -60,11 +60,11 @@
     {
       "source": "EIA Henry Hub spot",
       "status": "AVAILABLE",
-      "latest_observation": "2026-10-14",
-      "latest_value": "$3.22/MMBtu",
-      "available_at": "EIA workbook release date: 2026-10-15 (date only)",
-      "retrieved_at": "2026-10-21T00:43:57.234099Z",
-      "rows": 5708,
+      "latest_observation": "2026-10-20",
+      "latest_value": "$3.10/MMBtu",
+      "available_at": "EIA workbook release date: 2026-10-21 (date only)",
+      "retrieved_at": "2026-10-22T00:47:07.175141Z",
+      "rows": 5712,
       "role": "Reference only; excluded from forecast features",
       "source_url": "https://www.eia.gov/dnav/ng/hist_xls/RNGWHHDd.xls",
       "note": "Workbook lacks per-observation publication timestamps; historical point-in-time use is not validated."
@@ -94,11 +94,11 @@
       "note": "No point-in-time provider is configured for these inputs."
     }
   ],
-  "latest_session": "2026-10-19",
+  "latest_session": "2026-10-20",
   "history_rows": 2513,
   "forecasts": 20,
-  "scored": 4,
-  "ledger_forecasts": 40,
-  "ledger_outcomes": 4,
+  "scored": 8,
+  "ledger_forecasts": 60,
+  "ledger_outcomes": 12,
   "model_weights": []
 }
