@@ -1,9 +1,9 @@
 {
-  "run_at": "2026-10-30T02:04:32.538496+00:00",
+  "run_at": "2026-10-31T01:44:03.246345+00:00",
   "trigger": "scheduled_run",
   "status": "READY",
   "provider": "nasdaq",
-  "agreement": "confirmed 2026-10-29 with 2513 overlapping sessions",
+  "agreement": "confirmed 2026-10-30 with 2514 overlapping sessions",
   "context": {
     "eia_storage": "AVAILABLE",
     "cftc_positioning": "AVAILABLE"
@@ -12,25 +12,25 @@
     {
       "source": "Nasdaq UNG",
       "status": "AVAILABLE",
-      "latest_observation": "2026-10-29",
-      "latest_value": "$9.18 close",
+      "latest_observation": "2026-10-30",
+      "latest_value": "$9.08 close",
       "available_at": "Completed daily session; source does not expose a precise publication time",
-      "retrieved_at": "2026-10-30T02:04:04.678298Z",
-      "rows": 2513,
+      "retrieved_at": "2026-10-31T01:43:19.836722Z",
+      "rows": 2514,
       "role": "Primary UNG OHLCV",
-      "source_url": "https://api.nasdaq.com/api/quote/UNG/historical?assetclass=etf&fromdate=2007-04-18&todate=2026-10-30&limit=5000",
+      "source_url": "https://api.nasdaq.com/api/quote/UNG/historical?assetclass=etf&fromdate=2007-04-18&todate=2026-10-31&limit=5000",
       "note": ""
     },
     {
       "source": "Yahoo UNG",
       "status": "AVAILABLE",
-      "latest_observation": "2026-10-29",
-      "latest_value": "$9.18 close",
+      "latest_observation": "2026-10-30",
+      "latest_value": "$9.08 close",
       "available_at": "Completed daily session; source does not expose a precise publication time",
-      "retrieved_at": "2026-10-30T02:04:05.004518Z",
-      "rows": 4916,
+      "retrieved_at": "2026-10-31T01:43:20.000724Z",
+      "rows": 4917,
       "role": "Independent price confirmation",
-      "source_url": "https://query1.finance.yahoo.com/v8/finance/chart/UNG?period1=1176854400&period2=1793325844&interval=1d&events=div%2Csplits",
+      "source_url": "https://query1.finance.yahoo.com/v8/finance/chart/UNG?period1=1176854400&period2=1793410999&interval=1d&events=div%2Csplits",
       "note": ""
     },
     {
@@ -39,7 +39,7 @@
       "latest_observation": "2026-10-23",
       "latest_value": "3,724 Bcf",
       "available_at": "2026-10-29T15:30:00Z",
-      "retrieved_at": "2026-10-30T02:04:05.318545Z",
+      "retrieved_at": "2026-10-31T01:43:20.126605Z",
       "rows": 878,
       "role": "Context feed",
       "source_url": "https://www.eia.gov/dnav/ng/NG_STOR_WKLY_S1_W.htm",
@@ -48,11 +48,11 @@
     {
       "source": "CFTC natural-gas positioning",
       "status": "AVAILABLE",
-      "latest_observation": "2026-10-20",
-      "latest_value": "managed_money_net: -14.1% of OI; producer_merchant_net: 13.0% of OI",
-      "available_at": "2026-10-24T21:00:00Z",
-      "retrieved_at": "2026-10-30T02:04:06.200444Z",
-      "rows": 246,
+      "latest_observation": "2026-10-27",
+      "latest_value": "managed_money_net: -15.2% of OI; producer_merchant_net: 14.1% of OI",
+      "available_at": "2026-10-31T21:00:00Z",
+      "retrieved_at": "2026-10-31T01:43:21.049571Z",
+      "rows": 247,
       "role": "Context feed",
       "source_url": "https://www.cftc.gov/dea/futures/nat_gas_lf.htm",
       "note": "Availability uses the collector's conservative report-date + 4 days, 21:00 UTC rule; the archive does not provide exact historical publication timestamps."
@@ -63,8 +63,8 @@
       "latest_observation": "2026-10-27",
       "latest_value": "$2.76/MMBtu",
       "available_at": "EIA workbook release date: 2026-10-28 (date only)",
-      "retrieved_at": "2026-10-30T02:04:06.399408Z",
-      "rows": 5717,
+      "retrieved_at": "2026-10-31T01:43:21.191376Z",
+      "rows": 7485,
       "role": "Reference only; excluded from forecast features",
       "source_url": "https://www.eia.gov/dnav/ng/hist_xls/RNGWHHDd.xls",
       "note": "Workbook lacks per-observation publication timestamps; historical point-in-time use is not validated."
@@ -94,11 +94,11 @@
       "note": "No point-in-time provider is configured for these inputs."
     }
   ],
-  "latest_session": "2026-10-29",
-  "history_rows": 2513,
+  "latest_session": "2026-10-30",
+  "history_rows": 2514,
   "forecasts": 20,
   "scored": 12,
-  "ledger_forecasts": 160,
-  "ledger_outcomes": 116,
+  "ledger_forecasts": 180,
+  "ledger_outcomes": 128,
   "model_weights": []
 }
