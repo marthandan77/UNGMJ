@@ -1,9 +1,9 @@
 {
-  "run_at": "2026-11-05T02:39:54.299983+00:00",
+  "run_at": "2026-11-06T02:40:08.244126+00:00",
   "trigger": "scheduled_run",
   "status": "READY",
   "provider": "nasdaq",
-  "agreement": "confirmed 2026-11-04 with 2513 overlapping sessions",
+  "agreement": "confirmed 2026-11-05 with 2513 overlapping sessions",
   "context": {
     "eia_storage": "AVAILABLE",
     "cftc_positioning": "AVAILABLE"
@@ -12,35 +12,35 @@
     {
       "source": "Nasdaq UNG",
       "status": "AVAILABLE",
-      "latest_observation": "2026-11-04",
+      "latest_observation": "2026-11-05",
       "latest_value": "$9.27 close",
       "available_at": "Completed daily session; source does not expose a precise publication time",
-      "retrieved_at": "2026-11-05T02:39:18.071702Z",
+      "retrieved_at": "2026-11-06T02:39:39.717565Z",
       "rows": 2513,
       "role": "Primary UNG OHLCV",
-      "source_url": "https://api.nasdaq.com/api/quote/UNG/historical?assetclass=etf&fromdate=2007-04-18&todate=2026-11-05&limit=5000",
+      "source_url": "https://api.nasdaq.com/api/quote/UNG/historical?assetclass=etf&fromdate=2007-04-18&todate=2026-11-06&limit=5000",
       "note": ""
     },
     {
       "source": "Yahoo UNG",
       "status": "AVAILABLE",
-      "latest_observation": "2026-11-04",
+      "latest_observation": "2026-11-05",
       "latest_value": "$9.27 close",
       "available_at": "Completed daily session; source does not expose a precise publication time",
-      "retrieved_at": "2026-11-05T02:39:18.347508Z",
-      "rows": 4920,
+      "retrieved_at": "2026-11-06T02:39:39.987505Z",
+      "rows": 4921,
       "role": "Independent price confirmation",
-      "source_url": "https://query1.finance.yahoo.com/v8/finance/chart/UNG?period1=1176854400&period2=1793846358&interval=1d&events=div%2Csplits",
+      "source_url": "https://query1.finance.yahoo.com/v8/finance/chart/UNG?period1=1176854400&period2=1793932779&interval=1d&events=div%2Csplits",
       "note": ""
     },
     {
       "source": "EIA storage",
       "status": "AVAILABLE",
-      "latest_observation": "2026-10-23",
-      "latest_value": "3,724 Bcf",
-      "available_at": "2026-10-29T15:30:00Z",
-      "retrieved_at": "2026-11-05T02:39:18.562830Z",
-      "rows": 878,
+      "latest_observation": "2026-10-30",
+      "latest_value": "3,801 Bcf",
+      "available_at": "2026-11-05T15:30:00Z",
+      "retrieved_at": "2026-11-06T02:39:40.262623Z",
+      "rows": 879,
       "role": "Context feed",
       "source_url": "https://www.eia.gov/dnav/ng/NG_STOR_WKLY_S1_W.htm",
       "note": "Current release timestamp comes from the workbook/API rule. Historical workbook rows inherit the current workbook release date, so they are not point-in-time history."
@@ -51,7 +51,7 @@
       "latest_observation": "2026-10-27",
       "latest_value": "managed_money_net: -15.2% of OI; producer_merchant_net: 14.1% of OI",
       "available_at": "2026-10-31T21:00:00Z",
-      "retrieved_at": "2026-11-05T02:39:19.600590Z",
+      "retrieved_at": "2026-11-06T02:39:41.618417Z",
       "rows": 247,
       "role": "Context feed",
       "source_url": "https://www.cftc.gov/dea/futures/nat_gas_lf.htm",
@@ -63,7 +63,7 @@
       "latest_observation": "2026-11-03",
       "latest_value": "$2.63/MMBtu",
       "available_at": "EIA workbook release date: 2026-11-04 (date only)",
-      "retrieved_at": "2026-11-05T02:39:19.726300Z",
+      "retrieved_at": "2026-11-06T02:39:41.758273Z",
       "rows": 5722,
       "role": "Reference only; excluded from forecast features",
       "source_url": "https://www.eia.gov/dnav/ng/hist_xls/RNGWHHDd.xls",
@@ -94,11 +94,11 @@
       "note": "No point-in-time provider is configured for these inputs."
     }
   ],
-  "latest_session": "2026-11-04",
+  "latest_session": "2026-11-05",
   "history_rows": 2513,
   "forecasts": 20,
   "scored": 20,
-  "ledger_forecasts": 240,
-  "ledger_outcomes": 180,
+  "ledger_forecasts": 260,
+  "ledger_outcomes": 200,
   "model_weights": []
 }
