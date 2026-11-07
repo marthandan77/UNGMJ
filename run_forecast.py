@@ -39,12 +39,6 @@ def main() -> None:
             "Current release timestamp comes from the workbook/API rule. Historical workbook rows inherit the current workbook release date, so they are not point-in-time history.",
         ),
         (
-            *((
-                "cftc_positioning", "CFTC natural-gas positioning", fetch_cftc_positioning,
-                ("managed_money_net_pct_oi", "producer_merchant_net_pct_oi"),
-                "https://www.cftc.gov/dea/futures/nat_gas_lf.htm",
-                "Refreshed weekly; daily scans use the available current context only.",
-            ),) if datetime.now(timezone.utc).weekday() == 4 else ()),
     )
     for key, name, fetcher, value_columns, source_url, availability_note in feed_specs:
         try:
