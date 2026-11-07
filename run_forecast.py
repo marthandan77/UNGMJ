@@ -8,7 +8,6 @@ from ung_forecast.ledger import ForecastLedger
 from ung_forecast.providers import fetch_nasdaq_ung
 from ung_forecast.context_data import (
     combine_context_sources,
-    fetch_cftc_positioning,
     fetch_eia_storage,
 )
 from ung_forecast.feed_status import (
@@ -38,7 +37,6 @@ def main() -> None:
             "https://www.eia.gov/dnav/ng/NG_STOR_WKLY_S1_W.htm",
             "Current release timestamp comes from the workbook/API rule. Historical workbook rows inherit the current workbook release date, so they are not point-in-time history.",
         ),
-        (
     )
     for key, name, fetcher, value_columns, source_url, availability_note in feed_specs:
         try:
