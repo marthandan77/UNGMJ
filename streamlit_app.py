@@ -21,10 +21,9 @@ from ung_forecast.feed_status import (
     describe_price_feed,
     unavailable_feed,
 )
-from ung_forecast.providers import compare_sources, fetch_nasdaq_ung, fetch_yahoo_ung
+from ung_forecast.providers import fetch_nasdaq_ung
 from ung_forecast.rolling import generate_rolling_forecasts
 from ung_forecast.scorecards import build_scorecards
-from ung_forecast.weights import compute_model_weights
 
 st.set_page_config(page_title="UNG Forecast", page_icon="📈", layout="wide")
 st.title("UNG Rolling Forecast")
@@ -49,34 +48,17 @@ st.info(
 )
 selected_models = st.multiselect(
     "Models to run",
-    ["ridge", "hist_gradient_boosting", "random_forest", "extra_trees"],
-    default=["ridge", "hist_gradient_boosting", "random_forest", "extra_trees"],
-    help="Scan runs all four models by default. Select fewer to make a scan faster.",
+    ["hist_gradient_boosting", "ridge"],
+    default=["hist_gradient_boosting"],
+    help="HistGradientBoosting is the production model. Select Ridge for a challenger run.",
 )
 if st.button("Scan", type="primary", use_container_width=True):
     with st.spinner("Scanning configured feeds, scoring completed forecasts, and updating models..."):
         try:
             fetched = fetch_nasdaq_ung()
-            # Nasdaq is the primary source. Yahoo is an independent health check,
-            # but rate limiting there must not prevent a valid primary forecast.
-            try:
-                confirmation = fetch_yahoo_ung()
-                agreement = compare_sources(fetched, confirmation)
-                provider_status = "CONFIRMED"
-            except Exception as yahoo_exc:
-                agreement = f"Nasdaq primary accepted; Yahoo confirmation unavailable: {yahoo_exc}"
-                provider_status = "PRIMARY ONLY"
-                st.warning(agreement)
-                confirmation = None
+            agreement = "Nasdaq primary"
+            provider_status = "PRIMARY ONLY"
             data_feeds = [describe_price_feed("Nasdaq UNG", fetched, "Primary UNG OHLCV")]
-            if confirmation is not None:
-                data_feeds.append(describe_price_feed(
-                    "Yahoo UNG", confirmation, "Independent price confirmation"
-                ))
-            else:
-                data_feeds.append(unavailable_feed(
-                    "Yahoo UNG", "Price confirmation unavailable; primary source may still be used."
-                ))
             context_frames = []
             context_status = {}
             feed_specs = (
@@ -126,12 +108,12 @@ if st.button("Scan", type="primary", use_container_width=True):
             scored = ledger.score_matured(fetched.frame)
             generated = generate_rolling_forecasts(
                 fetched.frame, context=combine_context_sources(context_frames),
-                model_names=selected_models or ("ridge",), ledger=ledger
+                model_names=selected_models or ("hist_gradient_boosting",), ledger=ledger
             )
             report = {
                 "run_at": datetime.now(timezone.utc).isoformat(),
                 "trigger": "manual_scan",
-                "status": "READY" if len(context_frames) == 2 and provider_status == "CONFIRMED" else "PROVISIONAL",
+                "status": "READY" if len(context_frames) == 2 else "PROVISIONAL",
                 "provider": fetched.snapshot.provider,
                 "provider_status": provider_status,
                 "agreement": agreement,
@@ -201,30 +183,24 @@ if feed_rows:
 else:
     st.info("No persisted feed inventory yet. Run the daily collector or calculate a latest forecast to populate it.")
 if quality:
-    st.subheader("Latest run quality")
+    st.subheader("Status")
     q1, q2, q3 = st.columns(3)
     q1.metric("Status", quality["status"])
-    q2.metric("UNG providers", quality.get("provider_status", "UNKNOWN"))
-    q3.metric("Context sources", f"{quality.get('context_source_count', 0)}/2")
-    st.caption(quality["agreement"])
+    q2.metric("Price data", "Available")
+    q3.metric("Extra data", f"{quality.get('context_source_count', 0)}/2 sources")
 if forecasts:
     st.subheader("Next five trading sessions")
-    st.caption("Low and high show the model's expected trading range. Close is the expected closing price.")
+    st.caption("Expected close is the main estimate. Low and high show the expected range.")
     forecast_columns = {
-        "target_session": "Session", "model_name": "Model", "horizon": "Days ahead",
-        "predicted_low": "Forecast low", "expected_close": "Forecast close",
-        "predicted_high": "Forecast high", "probability_up": "Up probability",
-        "calibration_status": "Range calibration",
-        "calibration_sample_count": "Calibration samples",
-        "learning_sample_count": "Consensus samples",
+        "target_session": "Date", "predicted_low": "Low", "expected_close": "Expected close",
+        "predicted_high": "High",
     }
     forecast_data = pd.DataFrame(forecasts)
     for column in forecast_columns:
         if column not in forecast_data:
             forecast_data[column] = "—"
     forecast_table = forecast_data[list(forecast_columns)].rename(columns=forecast_columns)
-    forecast_table["Up probability"] = (forecast_table["Up probability"] * 100).round(0).astype(str) + "%"
-    for column in ("Forecast low", "Forecast close", "Forecast high"):
+    for column in ("Low", "Expected close", "High"):
         forecast_table[column] = forecast_table[column].round(2)
     st.dataframe(forecast_table, use_container_width=True, hide_index=True)
     chart_rows = {
@@ -240,39 +216,48 @@ if forecasts:
         st.line_chart(chart_rows, use_container_width=True)
         st.caption("The area between Forecast low and Forecast high is the expected price range; Forecast close is the middle estimate.")
     cards = build_scorecards(ForecastLedger().outcomes())
-    st.subheader("Individual model scorecards")
+    st.subheader("Simple accuracy")
     if cards:
         scorecard_columns = [
-            "model_name", "horizon", "matured_forecasts", "range_coverage",
-            "mean_abs_low_error", "mean_abs_high_error", "average_range_width", "status",
+            "model_name", "horizon", "matured_forecasts", "range_coverage", "status",
         ]
         st.dataframe(
             [{key: row.get(key) for key in scorecard_columns} for row in cards],
             use_container_width=True,
             hide_index=True,
         )
-        st.caption("Range coverage = percentage of sessions where the actual low and high stayed inside the forecast range.")
-        st.caption("Lower low/high errors are better. Narrower ranges are better only when coverage remains high.")
+        st.caption("Coverage is the percentage of days where the actual high and low stayed inside the predicted range.")
         scorecard_frame = pd.DataFrame(cards)
         st.subheader("Range accuracy at a glance")
         chart_frame = scorecard_frame.pivot(index="model_name", columns="horizon", values="range_coverage")
         chart_frame.columns = [f"{int(value)}d" for value in chart_frame.columns]
         st.bar_chart(chart_frame, y_label="Range coverage (1.0 = 100%)")
+        st.subheader("Full accuracy history")
+        outcomes = ForecastLedger().outcomes()
+        history = pd.DataFrame(outcomes)
+        if not history.empty:
+            history["target_session"] = pd.to_datetime(history["target_session"])
+            history = history.sort_values("target_session")
+            history["model_horizon"] = history["model_name"] + " / " + history["horizon"].astype(str) + "d"
+            history["cumulative_range_coverage"] = (
+                history.groupby("model_horizon")["range_contains_day"].transform("mean")
+            )
+            history["rolling_20_range_coverage"] = (
+                history.groupby("model_horizon")["range_contains_day"]
+                .transform(lambda values: values.rolling(20, min_periods=1).mean())
+            )
+            st.line_chart(
+                history.set_index("target_session").pivot(
+                    columns="model_horizon", values="cumulative_range_coverage"
+                ),
+                y_label="Cumulative range coverage",
+            )
+            st.dataframe(
+                history[["target_session", "model_name", "horizon", "close_error",
+                         "range_contains_day", "cumulative_range_coverage",
+                         "rolling_20_range_coverage"]],
+                use_container_width=True, hide_index=True,
+            )
     else:
         st.info("No matured forecasts yet; scorecards will populate as target sessions complete.")
-    weights = compute_model_weights(ForecastLedger().outcomes())
-    if weights:
-        st.subheader("Learned model weights")
-        st.dataframe(weights, use_container_width=True, hide_index=True)
-        st.caption(
-            "Weights use inverse close error from the most recent matured forecasts, separately by horizon. "
-            "At least 20 outcomes are required per model and horizon; the adaptive consensus is scored separately."
-        )
-    else:
-        st.info("Model weights remain neutral until sufficient matured out-of-sample evidence exists.")
-
-st.subheader("Planned output")
-st.write(
-    "Each run keeps individual model forecasts visible. Once enough matured evidence exists, "
-    "a separately labeled adaptive consensus uses recent model scores; its outcomes do not train its own weights."
-)
+st.caption("This is a research forecast, not financial advice.")

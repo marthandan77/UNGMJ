@@ -44,7 +44,12 @@ def generate_rolling_forecasts(
                 model_name, features, targets, reference_close=float(ung.iloc[-1].close),
                 target_session=target_session, horizon=horizon, min_rows=min_rows,
             )
-            identity = f"{latest_session.date()}|{target_session}|{model_name}|{horizon}"
+            reference = float(ung.iloc[-1].close)
+            if not (0.25 * reference < forecast.predicted_low <= forecast.expected_close <= forecast.predicted_high < 4.0 * reference):
+                raise ValueError(f"{model_name} produced an unreasonable forecast for horizon {horizon}")
+            # Every scan is a distinct forecast vintage, even if the provider
+            # has not published a newer bar yet.
+            identity = f"{issued_at}|{latest_session.date()}|{target_session}|{model_name}|{horizon}"
             record = {
                 "forecast_id": "UNG-" + hashlib.sha256(identity.encode()).hexdigest()[:20],
                 "issued_at": issued_at,
@@ -73,6 +78,7 @@ def generate_rolling_forecasts(
         for consensus in build_adaptive_consensus(output, learned_weights):
             identity = (
                 f"{consensus['origin_session']}|{consensus['target_session']}|"
+                f"{issued_at}|{consensus['origin_session']}|{consensus['target_session']}|"
                 f"{consensus['model_name']}|{consensus['horizon']}"
             )
             consensus["forecast_id"] = "UNG-" + hashlib.sha256(identity.encode()).hexdigest()[:20]

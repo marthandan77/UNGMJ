@@ -1,5 +1,9 @@
 name: Daily UNG forecast
 
+concurrency:
+  group: ung-forecast
+  cancel-in-progress: false
+
 on:
   workflow_dispatch:
   schedule:
