@@ -24,6 +24,7 @@ from ung_forecast.feed_status import (
 from ung_forecast.providers import fetch_nasdaq_ung
 from ung_forecast.rolling import generate_rolling_forecasts
 from ung_forecast.scorecards import build_scorecards
+from ung_forecast.weights import compute_model_weights
 
 st.set_page_config(page_title="UNG Forecast", page_icon="📈", layout="wide")
 st.title("UNG Rolling Forecast")
