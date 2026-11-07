@@ -32,7 +32,7 @@ def _model(name: str, quantile: float | None = None) -> Pipeline:
     elif name == "hist_gradient_boosting":
         estimator = HistGradientBoostingRegressor(
             loss="quantile" if quantile is not None else "squared_error",
-            quantile=quantile, max_iter=180, learning_rate=0.04,
+            quantile=quantile, max_iter=70, learning_rate=0.04,
             max_leaf_nodes=15, l2_regularization=2.0, random_state=42,
         )
         scale = False

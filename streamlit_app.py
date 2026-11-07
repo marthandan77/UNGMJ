@@ -11,13 +11,10 @@ import streamlit as st
 from ung_forecast.ledger import ForecastLedger
 from ung_forecast.context_data import (
     combine_context_sources,
-    fetch_cftc_positioning,
-    fetch_eia_henry_hub_spot,
     fetch_eia_storage,
 )
 from ung_forecast.feed_status import (
     describe_context_feed,
-    describe_henry_hub_feed,
     describe_price_feed,
     unavailable_feed,
 )
@@ -68,12 +65,6 @@ if st.button("Scan", type="primary", use_container_width=True):
                     "https://www.eia.gov/dnav/ng/NG_STOR_WKLY_S1_W.htm",
                     "Historical workbook rows inherit the current workbook release date; do not treat it as historical point-in-time timing.",
                 ),
-                (
-                    "cftc_positioning", "CFTC natural-gas positioning", fetch_cftc_positioning,
-                    ("managed_money_net_pct_oi", "producer_merchant_net_pct_oi"),
-                    "https://www.cftc.gov/dea/futures/nat_gas_lf.htm",
-                    "Availability uses a conservative report-date + 4 days, 21:00 UTC rule, not an observed publication timestamp.",
-                ),
             )
             for key, name, fetcher, value_columns, source_url, availability_note in feed_specs:
                 try:
@@ -89,12 +80,6 @@ if st.button("Scan", type="primary", use_container_width=True):
                     data_feeds.append(unavailable_feed(
                         name, f"Fetch or validation failed ({type(context_exc).__name__})."
                     ))
-            try:
-                data_feeds.append(describe_henry_hub_feed(fetch_eia_henry_hub_spot()))
-            except Exception as henry_hub_exc:
-                data_feeds.append(unavailable_feed(
-                    "EIA Henry Hub spot", f"Fetch or validation failed ({type(henry_hub_exc).__name__})."
-                ))
             data_feeds.extend([
                 unavailable_feed(
                     "Market depth", "No depth feed is configured in the daily UNG collector.",
@@ -114,7 +99,7 @@ if st.button("Scan", type="primary", use_container_width=True):
             report = {
                 "run_at": datetime.now(timezone.utc).isoformat(),
                 "trigger": "manual_scan",
-                "status": "READY" if len(context_frames) == 2 else "PROVISIONAL",
+                "status": "READY" if context_frames else "PROVISIONAL",
                 "provider": fetched.snapshot.provider,
                 "provider_status": provider_status,
                 "agreement": agreement,

@@ -23,6 +23,7 @@ def generate_rolling_forecasts(
     context: pd.DataFrame | None = None,
     model_names: Iterable[str] | None = None,
     ledger: ForecastLedger | None = None,
+    include_consensus: bool = False,
     min_rows: int = 100,
 ) -> list[dict]:
     """Generate one independent forecast per model and future session."""
@@ -71,7 +72,7 @@ def generate_rolling_forecasts(
                 output[-1] = record
             if ledger is not None:
                 ledger.append_forecast(record)
-    if ledger is not None:
+    if ledger is not None and include_consensus:
         # Only matured outcomes from earlier forecasts can influence today's
         # adaptive consensus. Every individual model forecast remains visible.
         learned_weights = compute_model_weights(ledger.outcomes())

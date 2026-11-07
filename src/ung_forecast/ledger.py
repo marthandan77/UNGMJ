@@ -99,8 +99,9 @@ class ForecastLedger:
         archive_dir = self.directory / "archive" / pd.Timestamp.now(tz="UTC").strftime("%Y-%m")
         archive_dir.mkdir(parents=True, exist_ok=True)
         for path in (self.forecasts_path, self.outcomes_path):
-            if path.exists():
-                shutil.copy2(path, archive_dir / path.name)
+            archive_path = archive_dir / path.name
+            if path.exists() and not archive_path.exists():
+                shutil.copy2(path, archive_path)
         for path, rows in ((self.forecasts_path, kept_forecasts), (self.outcomes_path, kept_outcomes)):
             with path.open("w", encoding="utf-8") as stream:
                 for row in rows:

@@ -9,12 +9,10 @@ from ung_forecast.providers import fetch_nasdaq_ung
 from ung_forecast.context_data import (
     combine_context_sources,
     fetch_cftc_positioning,
-    fetch_eia_henry_hub_spot,
     fetch_eia_storage,
 )
 from ung_forecast.feed_status import (
     describe_context_feed,
-    describe_henry_hub_feed,
     describe_price_feed,
     unavailable_feed,
 )
@@ -41,13 +39,12 @@ def main() -> None:
             "Current release timestamp comes from the workbook/API rule. Historical workbook rows inherit the current workbook release date, so they are not point-in-time history.",
         ),
         (
-            "cftc_positioning",
-            "CFTC natural-gas positioning",
-            fetch_cftc_positioning,
-            ("managed_money_net_pct_oi", "producer_merchant_net_pct_oi"),
-            "https://www.cftc.gov/dea/futures/nat_gas_lf.htm",
-            "Availability uses the collector's conservative report-date + 4 days, 21:00 UTC rule; the archive does not provide exact historical publication timestamps.",
-        ),
+            *((
+                "cftc_positioning", "CFTC natural-gas positioning", fetch_cftc_positioning,
+                ("managed_money_net_pct_oi", "producer_merchant_net_pct_oi"),
+                "https://www.cftc.gov/dea/futures/nat_gas_lf.htm",
+                "Refreshed weekly; daily scans use the available current context only.",
+            ),) if datetime.now(timezone.utc).weekday() == 4 else ()),
     )
     for key, name, fetcher, value_columns, source_url, availability_note in feed_specs:
         try:
@@ -61,13 +58,6 @@ def main() -> None:
         except Exception as exc:
             context_status[key] = f"UNAVAILABLE: {type(exc).__name__}"
             data_feeds.append(unavailable_feed(name, f"Fetch or validation failed ({type(exc).__name__})."))
-    try:
-        henry_hub = fetch_eia_henry_hub_spot()
-        data_feeds.append(describe_henry_hub_feed(henry_hub))
-    except Exception as exc:
-        data_feeds.append(unavailable_feed(
-            "EIA Henry Hub spot", f"Fetch or validation failed ({type(exc).__name__})."
-        ))
     data_feeds.extend([
         unavailable_feed(
             "Market depth", "No depth feed is configured in the daily UNG collector.", status="NOT_CONNECTED"
@@ -94,7 +84,7 @@ def main() -> None:
     report = {
         "run_at": datetime.now(timezone.utc).isoformat(),
         "trigger": "scheduled_run",
-        "status": "READY" if len(context) == 2 else "PROVISIONAL",
+        "status": "READY" if context else "PROVISIONAL",
         "provider": fetched.snapshot.provider,
         "agreement": agreement,
         "context": context_status,
