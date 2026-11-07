@@ -28,6 +28,11 @@ st.title("UNG Rolling Forecast")
 st.caption("Daily and five-session research forecasts. Not investment advice.")
 
 run_report_path = Path("data/ledger/latest-run.json")
+
+@st.cache_data(ttl=300, show_spinner=False)
+def cached_scorecards() -> list[dict]:
+    return build_scorecards(ForecastLedger().outcomes())
+
 persisted_report = {}
 if run_report_path.exists():
     try:
@@ -135,6 +140,7 @@ if st.button("Scan", type="primary", use_container_width=True):
                 "context_source_count": sum(value == "AVAILABLE" for value in context_status.values()),
                 "data_feeds": data_feeds,
             }
+            st.cache_data.clear()
             st.success(
                 f"Scan complete: {len(data_feeds)} feed statuses refreshed, {scored} matured forecasts scored, "
                 f"and {len(generated)} forecast rows updated."
@@ -201,7 +207,7 @@ if forecasts:
         st.subheader("Forecast range graphic — Ridge")
         st.line_chart(chart_rows, use_container_width=True)
         st.caption("The area between Forecast low and Forecast high is the expected price range; Forecast close is the middle estimate.")
-    cards = build_scorecards(ForecastLedger().outcomes())
+    cards = cached_scorecards()
     st.subheader("Simple accuracy")
     if cards:
         scorecard_columns = [
@@ -218,32 +224,6 @@ if forecasts:
         chart_frame = scorecard_frame.pivot(index="model_name", columns="horizon", values="range_coverage")
         chart_frame.columns = [f"{int(value)}d" for value in chart_frame.columns]
         st.bar_chart(chart_frame, y_label="Range coverage (1.0 = 100%)")
-        st.subheader("Full accuracy history")
-        outcomes = ForecastLedger().outcomes()
-        history = pd.DataFrame(outcomes)
-        if not history.empty:
-            history["target_session"] = pd.to_datetime(history["target_session"])
-            history = history.sort_values("target_session")
-            history["model_horizon"] = history["model_name"] + " / " + history["horizon"].astype(str) + "d"
-            history["cumulative_range_coverage"] = (
-                history.groupby("model_horizon")["range_contains_day"].transform("mean")
-            )
-            history["rolling_20_range_coverage"] = (
-                history.groupby("model_horizon")["range_contains_day"]
-                .transform(lambda values: values.rolling(20, min_periods=1).mean())
-            )
-            st.line_chart(
-                history.set_index("target_session").pivot(
-                    columns="model_horizon", values="cumulative_range_coverage"
-                ),
-                y_label="Cumulative range coverage",
-            )
-            st.dataframe(
-                history[["target_session", "model_name", "horizon", "close_error",
-                         "range_contains_day", "cumulative_range_coverage",
-                         "rolling_20_range_coverage"]],
-                use_container_width=True, hide_index=True,
-            )
     else:
         st.info("No matured forecasts yet; scorecards will populate as target sessions complete.")
 st.caption("This is a research forecast, not financial advice.")
