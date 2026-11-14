@@ -1,5 +1,5 @@
 {
-  "run_at": "2026-11-14T02:34:05.573722+00:00",
+  "run_at": "2026-11-14T02:57:08.451139+00:00",
   "trigger": "scheduled_run",
   "status": "READY",
   "provider": "nasdaq",
@@ -14,7 +14,7 @@
       "latest_observation": "2026-11-13",
       "latest_value": "$10.15 close",
       "available_at": "Completed daily session; source does not expose a precise publication time",
-      "retrieved_at": "2026-11-14T02:34:03.165899Z",
+      "retrieved_at": "2026-11-14T02:57:07.860936Z",
       "rows": 2514,
       "role": "Primary UNG OHLCV",
       "source_url": "https://api.nasdaq.com/api/quote/UNG/historical?assetclass=etf&fromdate=2007-04-18&todate=2026-11-14&limit=5000",
@@ -26,7 +26,7 @@
       "latest_observation": "2026-11-06",
       "latest_value": "3,862 Bcf",
       "available_at": "2026-11-13T15:30:00Z",
-      "retrieved_at": "2026-11-14T02:34:03.348234Z",
+      "retrieved_at": "2026-11-14T02:57:08.294691Z",
       "rows": 880,
       "role": "Context feed",
       "source_url": "https://www.eia.gov/dnav/ng/NG_STOR_WKLY_S1_W.htm",
@@ -60,13 +60,13 @@
   "latest_session": "2026-11-13",
   "history_rows": 2514,
   "forecasts": 5,
-  "scored": 39,
-  "ledger_forecasts": 290,
+  "scored": 0,
+  "ledger_forecasts": 295,
   "ledger_outcomes": 279,
   "purge": {
     "forecasts_removed": 0,
     "outcomes_removed": 0
   },
-  "duration_seconds": 3.89,
+  "duration_seconds": 3.09,
   "model_weights": []
 }
