@@ -1,5 +1,5 @@
 {
-  "run_at": "2026-11-17T04:41:22.406540+00:00",
+  "run_at": "2026-11-18T03:46:45.199345+00:00",
   "trigger": "scheduled_run",
   "status": "READY",
   "provider": "nasdaq",
@@ -11,13 +11,13 @@
     {
       "source": "Nasdaq UNG",
       "status": "AVAILABLE",
-      "latest_observation": "2026-11-16",
-      "latest_value": "$9.82 close",
+      "latest_observation": "2026-11-17",
+      "latest_value": "$10.04 close",
       "available_at": "Completed daily session; source does not expose a precise publication time",
-      "retrieved_at": "2026-11-17T04:41:19.464592Z",
+      "retrieved_at": "2026-11-18T03:46:41.909105Z",
       "rows": 2513,
       "role": "Primary UNG OHLCV",
-      "source_url": "https://api.nasdaq.com/api/quote/UNG/historical?assetclass=etf&fromdate=2007-04-18&todate=2026-11-17&limit=5000",
+      "source_url": "https://api.nasdaq.com/api/quote/UNG/historical?assetclass=etf&fromdate=2007-04-18&todate=2026-11-18&limit=5000",
       "note": ""
     },
     {
@@ -26,7 +26,7 @@
       "latest_observation": "2026-11-06",
       "latest_value": "3,862 Bcf",
       "available_at": "2026-11-13T15:30:00Z",
-      "retrieved_at": "2026-11-17T04:41:19.567850Z",
+      "retrieved_at": "2026-11-18T03:46:42.228297Z",
       "rows": 880,
       "role": "Context feed",
       "source_url": "https://www.eia.gov/dnav/ng/NG_STOR_WKLY_S1_W.htm",
@@ -57,16 +57,16 @@
       "note": "No point-in-time provider is configured for these inputs."
     }
   ],
-  "latest_session": "2026-11-16",
+  "latest_session": "2026-11-17",
   "history_rows": 2513,
   "forecasts": 5,
-  "scored": 7,
-  "ledger_forecasts": 300,
-  "ledger_outcomes": 286,
+  "scored": 4,
+  "ledger_forecasts": 305,
+  "ledger_outcomes": 290,
   "purge": {
     "forecasts_removed": 0,
     "outcomes_removed": 0
   },
-  "duration_seconds": 6.3,
+  "duration_seconds": 6.62,
   "model_weights": []
 }
