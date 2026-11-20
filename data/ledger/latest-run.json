@@ -1,5 +1,5 @@
 {
-  "run_at": "2026-11-19T03:44:29.924061+00:00",
+  "run_at": "2026-11-20T03:38:06.647050+00:00",
   "trigger": "scheduled_run",
   "status": "READY",
   "provider": "nasdaq",
@@ -11,23 +11,23 @@
     {
       "source": "Nasdaq UNG",
       "status": "AVAILABLE",
-      "latest_observation": "2026-11-18",
-      "latest_value": "$10.61 close",
+      "latest_observation": "2026-11-19",
+      "latest_value": "$10.26 close",
       "available_at": "Completed daily session; source does not expose a precise publication time",
-      "retrieved_at": "2026-11-19T03:44:26.741641Z",
+      "retrieved_at": "2026-11-20T03:38:04.449169Z",
       "rows": 2513,
       "role": "Primary UNG OHLCV",
-      "source_url": "https://api.nasdaq.com/api/quote/UNG/historical?assetclass=etf&fromdate=2007-04-18&todate=2026-11-19&limit=5000",
+      "source_url": "https://api.nasdaq.com/api/quote/UNG/historical?assetclass=etf&fromdate=2007-04-18&todate=2026-11-20&limit=5000",
       "note": ""
     },
     {
       "source": "EIA storage",
       "status": "AVAILABLE",
-      "latest_observation": "2026-11-06",
-      "latest_value": "3,862 Bcf",
-      "available_at": "2026-11-13T15:30:00Z",
-      "retrieved_at": "2026-11-19T03:44:26.912359Z",
-      "rows": 880,
+      "latest_observation": "2026-11-13",
+      "latest_value": "3,882 Bcf",
+      "available_at": "2026-11-19T15:30:00Z",
+      "retrieved_at": "2026-11-20T03:38:04.840123Z",
+      "rows": 881,
       "role": "Context feed",
       "source_url": "https://www.eia.gov/dnav/ng/NG_STOR_WKLY_S1_W.htm",
       "note": "Current release timestamp comes from the workbook/API rule. Historical workbook rows inherit the current workbook release date, so they are not point-in-time history."
@@ -57,16 +57,16 @@
       "note": "No point-in-time provider is configured for these inputs."
     }
   ],
-  "latest_session": "2026-11-18",
+  "latest_session": "2026-11-19",
   "history_rows": 2513,
   "forecasts": 5,
-  "scored": 4,
-  "ledger_forecasts": 310,
-  "ledger_outcomes": 294,
+  "scored": 5,
+  "ledger_forecasts": 315,
+  "ledger_outcomes": 299,
   "purge": {
     "forecasts_removed": 0,
     "outcomes_removed": 0
   },
-  "duration_seconds": 5.57,
+  "duration_seconds": 3.71,
   "model_weights": []
 }
