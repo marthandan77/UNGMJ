@@ -1,5 +1,5 @@
 {
-  "run_at": "2026-11-20T03:38:06.647050+00:00",
+  "run_at": "2026-11-21T03:20:23.438711+00:00",
   "trigger": "scheduled_run",
   "status": "READY",
   "provider": "nasdaq",
@@ -11,13 +11,13 @@
     {
       "source": "Nasdaq UNG",
       "status": "AVAILABLE",
-      "latest_observation": "2026-11-19",
-      "latest_value": "$10.26 close",
+      "latest_observation": "2026-11-20",
+      "latest_value": "$10.56 close",
       "available_at": "Completed daily session; source does not expose a precise publication time",
-      "retrieved_at": "2026-11-20T03:38:04.449169Z",
-      "rows": 2513,
+      "retrieved_at": "2026-11-21T03:20:20.349377Z",
+      "rows": 2514,
       "role": "Primary UNG OHLCV",
-      "source_url": "https://api.nasdaq.com/api/quote/UNG/historical?assetclass=etf&fromdate=2007-04-18&todate=2026-11-20&limit=5000",
+      "source_url": "https://api.nasdaq.com/api/quote/UNG/historical?assetclass=etf&fromdate=2007-04-18&todate=2026-11-21&limit=5000",
       "note": ""
     },
     {
@@ -26,7 +26,7 @@
       "latest_observation": "2026-11-13",
       "latest_value": "3,882 Bcf",
       "available_at": "2026-11-19T15:30:00Z",
-      "retrieved_at": "2026-11-20T03:38:04.840123Z",
+      "retrieved_at": "2026-11-21T03:20:20.502275Z",
       "rows": 881,
       "role": "Context feed",
       "source_url": "https://www.eia.gov/dnav/ng/NG_STOR_WKLY_S1_W.htm",
@@ -57,16 +57,25 @@
       "note": "No point-in-time provider is configured for these inputs."
     }
   ],
-  "latest_session": "2026-11-19",
-  "history_rows": 2513,
+  "latest_session": "2026-11-20",
+  "history_rows": 2514,
   "forecasts": 5,
-  "scored": 5,
-  "ledger_forecasts": 315,
-  "ledger_outcomes": 299,
+  "scored": 6,
+  "ledger_forecasts": 320,
+  "ledger_outcomes": 305,
   "purge": {
     "forecasts_removed": 0,
     "outcomes_removed": 0
   },
-  "duration_seconds": 3.71,
-  "model_weights": []
+  "duration_seconds": 5.61,
+  "model_weights": [
+    {
+      "model_name": "hist_gradient_boosting",
+      "horizon": 1,
+      "sample_count": 20,
+      "mean_abs_close_error": 0.2588755544666633,
+      "weight": 0.5,
+      "status": "LEARNED"
+    }
+  ]
 }
