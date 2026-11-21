@@ -13,7 +13,7 @@ def prices(n=180):
 
 def test_walk_forward_is_expanding_and_future_blind() -> None:
     frame = prices()
-    rows = walk_forward_evaluate("ridge", build_features(frame), build_forward_targets(frame, 1), horizon=1, min_train_rows=100, step=10)
+    rows = walk_forward_evaluate("hist_gradient_boosting", build_features(frame), build_forward_targets(frame, 1), horizon=1, min_train_rows=100, step=10)
     assert rows
-    assert all(row["model_name"] == "ridge" for row in rows)
+    assert all(row["model_name"] == "hist_gradient_boosting" for row in rows)
     assert all("actual_return" in row and "absolute_error" in row for row in rows)

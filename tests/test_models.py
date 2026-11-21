@@ -12,8 +12,8 @@ def frame() -> pd.DataFrame:
 
 def test_models_return_individual_forecast() -> None:
     prices = frame()
-    forecast = fit_individual_forecast("ridge", build_features(prices), build_forward_targets(prices, 1), reference_close=279, target_session="2026-12-31", horizon=1)
-    assert forecast.model_name == "ridge"
+    forecast = fit_individual_forecast("hist_gradient_boosting", build_features(prices), build_forward_targets(prices, 1), reference_close=279, target_session="2026-12-31", horizon=1)
+    assert forecast.model_name == "hist_gradient_boosting"
     assert forecast.predicted_low <= forecast.predicted_high
     assert 0.0 < forecast.probability_up < 1.0
     assert forecast.uncertainty >= 0.0

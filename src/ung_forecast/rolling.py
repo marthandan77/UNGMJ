@@ -29,7 +29,7 @@ def generate_rolling_forecasts(
     """Generate one independent forecast per model and future session."""
     ung = ung.sort_index()
     if model_names is None:
-        configured = os.getenv("UNG_MODELS", "ridge")
+        configured = os.getenv("UNG_MODELS", "hist_gradient_boosting")
         model_names = tuple(name.strip() for name in configured.split(",") if name.strip())
     model_names = tuple(dict.fromkeys(model_names))
     features = build_features(ung, henry_hub, context)

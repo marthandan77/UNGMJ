@@ -11,6 +11,7 @@ import streamlit as st
 from ung_forecast.ledger import ForecastLedger
 from ung_forecast.context_data import (
     combine_context_sources,
+    fetch_cftc_positioning,
     fetch_eia_storage,
 )
 from ung_forecast.feed_status import (
@@ -18,10 +19,11 @@ from ung_forecast.feed_status import (
     describe_price_feed,
     unavailable_feed,
 )
-from ung_forecast.providers import fetch_nasdaq_ung
+from ung_forecast.providers import fetch_nasdaq_ung, fetch_yahoo_ung
 from ung_forecast.rolling import generate_rolling_forecasts
 from ung_forecast.scorecards import build_scorecards
 from ung_forecast.weights import compute_model_weights
+from ung_forecast.trade_desk import run_walk_forward_simulation
 
 st.set_page_config(page_title="UNG Forecast", page_icon="📈", layout="wide")
 st.title("UNG Rolling Forecast")
@@ -49,11 +51,67 @@ st.info(
     "Forecasts are provisional research outputs. After 20 matured outcomes per model and horizon, "
     "recent performance can inform the separately labeled adaptive consensus."
 )
+
+with st.expander("Adaptive Trade Desk simulation", expanded=False):
+    st.write(
+        "Simulates five factor-group experts over rolling historical forecast origins. "
+        "Each horizon gets weights from previously matured out-of-sample errors."
+    )
+    st.caption(
+        "Current inputs are UNG price, range, trend, momentum, and volume. Factor contributions "
+        "show model associations, not causal effects."
+    )
+    if st.button("Run 1–5 session simulation", key="run_trade_desk_simulation"):
+        with st.spinner("Running future-blind walk-forward simulation..."):
+            try:
+                try:
+                    simulation_fetch = fetch_nasdaq_ung()
+                except Exception:
+                    simulation_fetch = fetch_yahoo_ung()
+                simulation = run_walk_forward_simulation(
+                    simulation_fetch.frame, min_train_rows=252, step=5, max_origins=126,
+                )
+                simulation["price_source"] = simulation_fetch.snapshot.provider
+                simulation["data_through"] = simulation_fetch.snapshot.published_through.isoformat()
+                sim_path = Path("data/ledger/trade-desk-simulation.json")
+                sim_path.parent.mkdir(parents=True, exist_ok=True)
+                sim_path.write_text(json.dumps(simulation, indent=2) + "\n", encoding="utf-8")
+                st.session_state["trade_desk_simulation"] = simulation
+            except Exception as simulation_exc:
+                st.error(f"Simulation blocked: {type(simulation_exc).__name__}: {simulation_exc}")
+
+    simulation = st.session_state.get("trade_desk_simulation")
+    if simulation:
+        st.caption(
+            f"{simulation['simulation_origins']} historical origins | "
+            f"{simulation['first_origin']} to {simulation['last_origin']} | "
+            f"{simulation['bars']} daily bars"
+        )
+        if simulation["metrics_by_horizon"]:
+            st.dataframe(pd.DataFrame(simulation["metrics_by_horizon"]), use_container_width=True, hide_index=True)
+        if simulation["latest_forecasts"]:
+            st.subheader("Current adaptive 1–5 session forecast")
+            current = pd.DataFrame(simulation["latest_forecasts"])
+            st.dataframe(
+                current[["origin_session", "horizon", "reference_close", "predicted_low", "expected_close", "predicted_high"]].round(3),
+                use_container_width=True,
+                hide_index=True,
+            )
+            attribution = [
+                {"Horizon": f"{row['horizon']} session(s)", "Factor": item["factor"],
+                 "Adaptive weight": item["weight"],
+                 "Close forecast contribution (%)": item["predicted_close_contribution_pct"]}
+                for row in simulation["latest_forecasts"] for item in row["factor_contributions"]
+            ]
+            st.subheader("Factor weights and forecast contributions")
+            st.dataframe(pd.DataFrame(attribution).round(4), use_container_width=True, hide_index=True)
+        st.caption("The horizon range covers the path from the next session through the stated horizon.")
+
 selected_models = st.multiselect(
     "Models to run",
-    ["hist_gradient_boosting", "ridge"],
+    ["hist_gradient_boosting", "random_forest", "extra_trees"],
     default=["hist_gradient_boosting"],
-    help="HistGradientBoosting is the production model. Select Ridge for a challenger run.",
+    help="Select one or more tree-based models for comparison.",
 )
 if st.button("Scan", type="primary", use_container_width=True):
     with st.spinner("Scanning configured feeds, scoring completed forecasts, and updating models..."):
@@ -69,6 +127,12 @@ if st.button("Scan", type="primary", use_container_width=True):
                     "eia_storage", "EIA storage", fetch_eia_storage, ("storage_bcf",),
                     "https://www.eia.gov/dnav/ng/NG_STOR_WKLY_S1_W.htm",
                     "Historical workbook rows inherit the current workbook release date; do not treat it as historical point-in-time timing.",
+                ),
+                (
+                    "cftc_positioning", "CFTC natural-gas positioning", fetch_cftc_positioning,
+                    ("managed_money_net_pct_oi", "producer_merchant_net_pct_oi"),
+                    "https://www.cftc.gov/MarketReports/CommitmentsofTraders/index.htm",
+                    "Weekly positions use a conservative release-time estimate; check holiday-week release timing before research use.",
                 ),
             )
             for key, name, fetcher, value_columns, source_url, availability_note in feed_specs:
@@ -201,10 +265,10 @@ if forecasts:
             "expected_close": row["expected_close"],
             "predicted_high": row["predicted_high"],
         }
-        for row in forecasts if row["model_name"] == "ridge"
+        for row in forecasts if row["model_name"] == "hist_gradient_boosting"
     }
     if chart_rows:
-        st.subheader("Forecast range graphic — Ridge")
+        st.subheader("Forecast range graphic — HistGradientBoosting")
         st.line_chart(chart_rows, use_container_width=True)
         st.caption("The area between Forecast low and Forecast high is the expected price range; Forecast close is the middle estimate.")
     cards = cached_scorecards()

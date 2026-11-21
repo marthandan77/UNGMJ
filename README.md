@@ -37,6 +37,27 @@ adaptive consensus uses only previously matured outcomes; its own outcomes are s
 monitoring but are excluded from the base-model weight calculation. This is a transparent
 feedback loop, not a guarantee of predictive accuracy.
 
+## Adaptive Trade Desk simulation
+
+See [`TRADE_DESK_PLAN.md`](TRADE_DESK_PLAN.md) for the full architecture, data-source map,
+alpha research loop, and staged build plan.
+
+Run a future-blind walk-forward simulation of the 1–5 session path range forecasts:
+
+```powershell
+$env:PYTHONPATH = "src"
+python simulate_trade_desk.py
+```
+
+The simulation compares momentum, trend, volatility/range, and volume experts. It learns
+horizon-specific expert weights from matured forecast errors and calibrates range widths
+from prior out-of-sample path misses. The JSON report is written to
+`data/ledger/trade-desk-simulation.json`; the Streamlit dashboard also has a simulation
+panel. With current feeds, these factors are derived from UNG OHLCV only. Displayed factor
+contributions are model associations and should not be interpreted as causal effects.
+The report includes comparison with a zero-return close forecast and empirical range
+coverage so that adaptive performance can be judged against simple baselines.
+
 The dashboard's **Market input availability** table shows the latest UNG provider checks,
 EIA storage and CFTC positioning observations, plus the latest EIA Henry Hub spot value.
 Henry Hub is reference-only until its historical publication times are verified. Market
