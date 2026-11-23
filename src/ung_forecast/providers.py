@@ -6,6 +6,7 @@ import json
 import os
 import urllib.parse
 import urllib.request
+from urllib.error import HTTPError
 from datetime import date, datetime, time, timedelta, timezone
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -23,13 +24,13 @@ def _credential_value(*names: str) -> str | None:
     for name in names:
         value = os.getenv(name)
         if value:
-            return value
+            return value.strip()
     try:
         import streamlit as st
         for name in names:
             value = st.secrets.get(name)
             if value:
-                return str(value)
+                return str(value).strip()
     except Exception:
         # Streamlit secrets are unavailable to CLI jobs unless explicitly configured.
         pass
@@ -69,6 +70,19 @@ def _request_bars(params: dict[str, str]) -> tuple[list[dict[str, Any]], bytes, 
         try:
             with urllib.request.urlopen(request, timeout=30) as response:
                 raw = response.read()
+        except HTTPError as exc:
+            if exc.code == 401:
+                raise DataValidationError(
+                    "Alpaca rejected the API credentials (HTTP 401). Check that APCA_API_KEY_ID "
+                    "and APCA_API_SECRET_KEY are both correct and belong to the same Alpaca account. "
+                    "Do not use placeholder text or include extra quote characters inside the values."
+                ) from exc
+            if exc.code == 403:
+                raise DataValidationError(
+                    "Alpaca denied this market-data request (HTTP 403). Check the account's data "
+                    "feed entitlement and the requested SIP history window."
+                ) from exc
+            raise DataValidationError(f"Alpaca market-data request failed: HTTP {exc.code}") from exc
         except Exception as exc:
             raise DataValidationError(f"Alpaca market-data request failed: {exc}") from exc
         try:
