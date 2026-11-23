@@ -14,7 +14,7 @@ from ung_forecast.feed_status import describe_context_feed, describe_price_feed,
 from ung_forecast.features import FORECAST_FEATURE_GROUPS
 from ung_forecast.ledger import ForecastLedger
 from ung_forecast.outside_rth import build_current_outside_rth_snapshot, outside_rth_frame
-from ung_forecast.providers import alpaca_credentials_configured, fetch_alpaca_ung_daily, fetch_alpaca_ung_intraday
+from ung_forecast.providers import fetch_alpaca_ung_daily, fetch_alpaca_ung_intraday
 from ung_forecast.rolling import generate_rolling_forecasts
 from ung_forecast.scorecards import build_scorecards
 from ung_forecast.trade_desk import run_walk_forward_simulation
@@ -161,11 +161,7 @@ with st.sidebar:
     st.divider()
     horizon = st.selectbox("Forecast horizon", [1, 2, 3, 4, 5], format_func=lambda x: f"{x} session" if x == 1 else f"{x} sessions")
     st.caption("The trade planner defaults to the next session; longer horizons show the path range through that session.")
-    api_ready = alpaca_credentials_configured()
-    if not api_ready:
-        st.info("Read-only mode: Alpaca credentials are not set. Saved forecasts can still be viewed; data refresh is disabled.")
-        st.caption("To launch locally from the repository folder: `streamlit run streamlit_app.py`. Opening the GitHub repository alone does not run this app.")
-    if st.button("↻  Refresh data & forecast", type="primary", use_container_width=True, disabled=not api_ready):
+    if st.button("↻  Refresh data & forecast", type="primary", use_container_width=True):
         try:
             run_scan(ledger)
             st.success("Forecast vintage updated.")
