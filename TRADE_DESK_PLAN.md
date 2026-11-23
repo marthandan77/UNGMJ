@@ -23,7 +23,7 @@ The system supports research and human-reviewed paper trading; it does not place
 
 | Data | Use | Access and availability | Priority |
 | --- | --- | --- | --- |
-| UNG OHLCV, trades/quotes, intraday bars | Exact traded instrument, daily ranges, spread, liquidity, fill simulation | Daily Nasdaq/Yahoo feed exists; a stable historical intraday quote feed needs a provider | P0 |
+| UNG OHLCV, trades/quotes, intraday bars | Exact traded instrument, daily ranges, spread, liquidity, fill simulation | Alpaca API consolidated SIP daily and one-minute extended-hours bars; free-plan SIP data is accessible after 15 minutes. No quote depth feed is configured | P0 |
 | NYMEX Henry Hub futures chain: front and deferred contracts, settlements, volume, open interest, bid/ask | Benchmark return, curve slope/calendar spreads, volatility, roll state | Exchange-quality history and real-time data generally require a licensed market-data provider; confirm rights and cost with provider/CME | P0 |
 | UNG holdings, benchmark contract, scheduled roll | Align ETF movement with the actual contract exposure and roll dates | USCF publishes fund information and disclosures; capture dated snapshots | P0 |
 | EIA weekly storage and other natural-gas balances | Surprise and seasonal balance features | EIA API is available; this repo already has storage ingestion. Use the actual release timestamp and construct an expectation using only prior data. [EIA API docs](https://www.eia.gov/opendata/documentation.php) | P1 |
@@ -52,32 +52,43 @@ Model the 10th, 25th, 50th, 75th, and 90th percentiles. Enforce low ≤ close �
 consistent horizons. Train and score every horizon independently. The current cumulative
 range forecast remains a separate risk view.
 
-### Candidate ensemble
+### Selected adaptive model
 
-- **Volatility baseline:** Log-HAR/realized-EGARCH features using close returns and range-based
-  volatility (Parkinson/Garman-Klass), plus seasonal and regime indicators.
-- **Nonlinear distribution experts:** histogram gradient-boosted quantile models and quantile
-  forests. Keep a simple quantile-regression baseline for diagnosis, but Ridge is removed from
-  active project code.
-- **Distribution combination:** rolling, regularized quantile-regression averaging across
-  experts. Estimate combination weights only from matured out-of-sample predictions; shrink
-  weights toward stable baseline weights when evidence is weak.
-- **Calibration:** rolling, horizon-specific calibration of joint low/high misses. Report both
-  empirical coverage and interval width. Calibrate separately for calm and high-volatility
-  regimes when each regime has enough evidence.
-- **Regime/context layer:** identify states from observable volatility, futures-curve shape,
-  weather revisions, and event flags. Use the regime to select or blend experts; do not let an
-  opaque regime classifier override the raw evidence.
+- **Single base learner:** HistGradientBoosting remains the only forecasting algorithm.
+  It is fit as one full-feature expert and as feature-group experts (momentum, volatility/range,
+  trend, volume, gas context, and outside-RTH once that feed is connected).
+- **Dynamic Model Averaging (DMA):** combine the HGB experts separately for each forecast
+  horizon. Start with equal weights, then update weights from matured out-of-sample low, close,
+  and high errors using a forgetting factor. A weak expert loses weight gradually; it is not
+  permanently removed after a short bad streak. The combined forecast is labeled `dma_consensus`.
+- **Multi-horizon adaptive calibration:** maintain a separate calibration state for each
+  horizon. ACI-style updates respond to whether the actual full-session range fell outside the
+  forecast, while recent lower- and upper-bound miss sizes set the amount of expansion. A
+  5-session forecast only updates its calibration after the full five-session outcome matures.
+- **Future expert groups:** the outside-RTH UNG group is defined as a candidate input group;
+  overnight NG inputs remain future work. Alpaca's one-minute SIP bars supply UNG premarket
+  and prior-session after-hours OHLCV snapshots at 6:45 a.m. Eastern (premarket midpoint) and
+  8:30 a.m. Eastern (one hour before RTH), stored separately going forward. Retrieval is scheduled
+  15 minutes after each cutoff to respect free-plan SIP access. The collector does not provide
+  quote depth or NG overnight bars, so no depth or
+  futures-relative feature is included yet. The live expert waits for 105 snapshots to leave
+  at least 100 mature training rows after the forecast-horizon embargo.
+  Weather, LNG, production, and event-specific experts likewise remain unavailable until their
+  timestamped feeds are implemented.
+- **Range and drift monitoring:** report per-horizon coverage, width, low/high/close error,
+  and component weights. Weight adaptation is evidence-driven and remains provisional until
+  walk-forward performance supports it; it does not guarantee forecast accuracy.
 
-The research starting point is quantile/distribution forecasts plus forecast combination and
-range-volatility baselines. Gas-price interval research highlights structural breaks and
-warns that LSTMs are not automatically superior to simpler models ([gas interval study](https://arxiv.org/abs/2407.16723)).
-Range-based volatility features are a candidate to test ([RNN/range study](https://arxiv.org/abs/1803.07152),
-[realized EGARCH/range study](https://arxiv.org/abs/2502.02695)). Forecast combination and
-calibration should be tested separately because they solve different failure modes
-([probabilistic electricity forecast combination](https://arxiv.org/abs/2404.02270),
-[tail reliability comparison](https://arxiv.org/abs/2611.03661)). These are research leads,
-not evidence that the models will be profitable on UNG.
+The online multi-step calibration approach is informed by [Adaptive Conformal Inference for
+Multi-Step Ahead Time-Series Forecasting Online](https://arxiv.org/abs/2409.14792). The choice
+to keep the base learner simple while adapting expert weights is a project design decision,
+not a claim that the method has already demonstrated an UNG trading edge.
+
+Natural-gas distributional forecasting research motivates handling heavy tails and conditional
+volatility in the forecast targets ([Berrisch & Ziel](https://arxiv.org/abs/2010.06227)). DMA
+research motivates time-varying weights when the most useful expert can change over time
+([Raftery, Kárný & Ettler](https://pmc.ncbi.nlm.nih.gov/articles/PMC2895940/)). These are
+research leads, not evidence that the method will be profitable on UNG.
 
 ## Factor attribution and continual alpha research
 
@@ -109,9 +120,11 @@ intraday order of high and low; realistic fill logic requires intraday bars or q
 
 1. **Data foundation:** persist raw vendor payloads, checksums, timestamps, contract identifiers,
    revisions, and data-quality flags; enable the existing CFTC connector; archive weather vintages;
-   establish an approved intraday/futures provider.
-2. **Forecast v2:** produce five independent daily probabilistic ranges; add volatility baseline,
-   quantile experts, regularized ensemble, and regime-aware calibration.
+   collect Alpaca premarket/after-hours snapshots; establish a futures provider for bid/ask,
+   depth, contract-chain, and NG overnight features.
+2. **Adaptive forecast:** keep HistGradientBoosting as the sole base learner; generate its
+   full-feature and source-group experts; combine them with horizon-specific DMA and adaptive
+   conformal range calibration.
 3. **Trade Desk screens:** current price/futures curve, daily 1–5 range ladder, factor attribution,
    model weights, data freshness, upcoming events, range coverage, and probability of touching levels.
 4. **Alpha lab:** scheduled candidate generation/evaluation, drift monitoring, versioned leaderboards,

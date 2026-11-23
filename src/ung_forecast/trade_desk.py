@@ -22,6 +22,8 @@ FACTOR_GROUPS: dict[str, tuple[str, ...]] = {
     "trend": ("price_vs_ema_5", "price_vs_ema_10", "price_vs_ema_20", "price_vs_ema_50"),
     "volume": ("volume_ratio_20", "volume_zscore_20"),
     "gas_context": ("henry_hub_return_1", "ung_gas_spread_1", "storage_bcf", "managed_money_net_pct_oi", "producer_merchant_net_pct_oi"),
+    "outside_rth_mid": ("ung_after_hours_return", "ung_after_hours_range_pct", "ung_after_hours_volume_ratio", "ung_premarket_mid_return", "ung_premarket_mid_range_pct", "ung_premarket_mid_volume_ratio"),
+    "outside_rth_1h": ("ung_after_hours_return", "ung_after_hours_range_pct", "ung_after_hours_volume_ratio", "ung_premarket_1h_return", "ung_premarket_1h_range_pct", "ung_premarket_1h_volume_ratio"),
 }
 
 
@@ -86,7 +88,8 @@ def _predict_origin(
     for name in names:
         columns = [column for column in FACTOR_GROUPS[name] if column in features.columns]
         usable = [column for column in columns if train[column].notna().any()]
-        if not usable:
+        usable_rows = int(train[usable].notna().any(axis=1).sum()) if usable else 0
+        if not usable or usable_rows < min(100, min_train_rows):
             continue
         expert_predictions[name] = {}
         current = features.iloc[[origin]][usable]
@@ -128,6 +131,7 @@ def _predict_origin(
 def run_walk_forward_simulation(
     ung: pd.DataFrame,
     *,
+    outside_rth: pd.DataFrame | None = None,
     min_train_rows: int = 252,
     step: int = 5,
     max_origins: int = 252,
@@ -142,7 +146,7 @@ def run_walk_forward_simulation(
     ung = ung.sort_index().copy()
     if len(ung) < min_train_rows + 30:
         raise ValueError(f"need at least {min_train_rows + 30} OHLCV rows")
-    features = build_features(ung)
+    features = build_features(ung, outside_rth=outside_rth)
     features.attrs["close"] = ung["close"]
     targets = {h: build_forward_targets(ung, h) for h in range(1, 6)}
     first = min_train_rows + 5
@@ -284,11 +288,15 @@ def run_walk_forward_simulation(
             "factor_contributions": prediction["attribution"],
         })
     latest_weights = current_forecasts[-1]["factor_weights"] if current_forecasts else {}
+    active_factor_groups = [
+        name for name, columns in FACTOR_GROUPS.items()
+        if any(column in features and int(features[column].notna().sum()) >= min(100, min_train_rows) for column in columns)
+    ]
     return {
         "status": "SIMULATED" if forecasts else "INSUFFICIENT_HISTORY",
         "forecast_model": "HistGradientBoostingRegressor factor-group experts",
         "range_calibration": "rolling 90th percentile of prior joint path misses",
-        "factor_groups": [name for name, columns in FACTOR_GROUPS.items() if any(c in features for c in columns)],
+        "factor_groups": active_factor_groups,
         "bars": len(ung),
         "simulation_origins": len(origins),
         "first_origin": ung.index[origins[0]].date().isoformat() if origins else None,

@@ -16,7 +16,7 @@ def frame(provider: str, multiplier: float = 1.0) -> FetchedFrame:
 
 
 def test_independent_sources_compare() -> None:
-    assert "confirmed" in compare_sources(frame("nasdaq"), frame("yahoo"))
+    assert "confirmed" in compare_sources(frame("alpaca"), frame("reference"))
 
 
 def test_same_provider_is_rejected() -> None:

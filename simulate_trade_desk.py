@@ -4,12 +4,12 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from ung_forecast.providers import fetch_yahoo_ung
+from ung_forecast.providers import fetch_alpaca_ung_daily
 from ung_forecast.trade_desk import run_walk_forward_simulation
 
 
 def main() -> None:
-    fetched = fetch_yahoo_ung()
+    fetched = fetch_alpaca_ung_daily()
     bars = fetched.frame
     report = run_walk_forward_simulation(bars, min_train_rows=252, step=5, max_origins=126)
     report["price_source"] = fetched.snapshot.provider

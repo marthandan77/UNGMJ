@@ -1,37 +1,115 @@
-"""Initial public-data adapters for UNG and Henry Hub."""
+"""Alpaca market-data adapters for UNG daily and extended-session bars."""
 from __future__ import annotations
 
 import hashlib
 import json
+import os
 import urllib.parse
 import urllib.request
-from datetime import date, datetime, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 
 from .contracts import DataValidationError, FetchedFrame, SourceSnapshot, validate_ohlcv
 
 
-def _get(url: str, *, timeout: int = 30) -> bytes:
-    request = urllib.request.Request(url, headers={"User-Agent": "UNG-Forecast/0.1"})
+ET = ZoneInfo("America/New_York")
+ALPACA_DATA_URL = "https://data.alpaca.markets/v2/stocks/UNG/bars"
+
+
+def _alpaca_credentials() -> tuple[str, str]:
+    key = os.getenv("APCA_API_KEY_ID") or os.getenv("ALPACA_API_KEY")
+    secret = os.getenv("APCA_API_SECRET_KEY") or os.getenv("ALPACA_API_SECRET")
+    if not key or not secret:
+        raise DataValidationError(
+            "Alpaca credentials are required: set APCA_API_KEY_ID and APCA_API_SECRET_KEY"
+        )
+    return key, secret
+
+
+def _request_bars(params: dict[str, str]) -> tuple[list[dict[str, Any]], bytes, str]:
+    key, secret = _alpaca_credentials()
+    query = urllib.parse.urlencode(params)
+    url = f"{ALPACA_DATA_URL}?{query}"
+    request = urllib.request.Request(url, headers={
+        "APCA-API-KEY-ID": key,
+        "APCA-API-SECRET-KEY": secret,
+        "Accept": "application/json",
+        "User-Agent": "UNG-Trade-Desk/0.1",
+    })
+    all_bars: list[dict[str, Any]] = []
+    payloads: list[bytes] = []
+    while True:
+        try:
+            with urllib.request.urlopen(request, timeout=30) as response:
+                raw = response.read()
+        except Exception as exc:
+            raise DataValidationError(f"Alpaca market-data request failed: {exc}") from exc
+        try:
+            payload = json.loads(raw)
+            bars = payload["bars"]
+            if not isinstance(bars, list):
+                raise TypeError("bars is not a list")
+        except (KeyError, TypeError, ValueError) as exc:
+            message = ""
+            try:
+                message = str(payload.get("message") or payload.get("error") or "")
+            except UnboundLocalError:
+                pass
+            raise DataValidationError(f"Alpaca response schema invalid: {message or exc}") from exc
+        payloads.append(raw)
+        all_bars.extend(bars)
+        token = payload.get("next_page_token")
+        if not token:
+            break
+        params["page_token"] = str(token)
+        query = urllib.parse.urlencode(params)
+        request = urllib.request.Request(f"{ALPACA_DATA_URL}?{query}", headers={
+            "APCA-API-KEY-ID": key,
+            "APCA-API-SECRET-KEY": secret,
+            "Accept": "application/json",
+            "User-Agent": "UNG-Trade-Desk/0.1",
+        })
+    raw_all = b"\n".join(payloads)
+    return all_bars, raw_all, url
+
+
+def _bars_frame(bars: list[dict[str, Any]], *, intraday: bool = False) -> pd.DataFrame:
+    if not bars:
+        raise DataValidationError("Alpaca returned no UNG bars")
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
-            if response.status != 200:
-                raise DataValidationError(f"HTTP {response.status}: {url}")
-            body = response.read()
-    except Exception as exc:
-        if isinstance(exc, DataValidationError):
-            raise
-        raise DataValidationError(f"download failed: {url}: {exc}") from exc
-    if not body:
-        raise DataValidationError(f"empty response: {url}")
-    return body
+        frame = pd.DataFrame({
+            "open": [bar["o"] for bar in bars],
+            "high": [bar["h"] for bar in bars],
+            "low": [bar["l"] for bar in bars],
+            "close": [bar["c"] for bar in bars],
+            "volume": [bar["v"] for bar in bars],
+        }, index=pd.to_datetime([bar["t"] for bar in bars], utc=True))
+        frame.index.name = "timestamp"
+        frame = frame.sort_index()
+        if frame.index.has_duplicates:
+            raise ValueError("duplicate bar timestamps")
+        frame = frame.apply(pd.to_numeric, errors="raise")
+        if intraday:
+            if (frame[["open", "high", "low", "close"]] <= 0).any().any():
+                raise ValueError("intraday prices must be positive")
+            if (frame["volume"] < 0).any():
+                raise ValueError("intraday volume must be non-negative")
+            if (frame["high"] < frame[["open", "close"]].max(axis=1)).any():
+                raise ValueError("intraday high below open/close")
+            if (frame["low"] > frame[["open", "close"]].min(axis=1)).any():
+                raise ValueError("intraday low above open/close")
+            return frame
+        return validate_ohlcv(frame)
+    except (KeyError, TypeError, ValueError) as exc:
+        raise DataValidationError(f"Alpaca OHLCV bars invalid: {exc}") from exc
 
 
-def _snapshot(provider: str, instrument: str, url: str, raw: bytes, published: date) -> SourceSnapshot:
+def _snapshot(instrument: str, url: str, raw: bytes, published: date) -> SourceSnapshot:
     return SourceSnapshot(
-        provider=provider,
+        provider="alpaca",
         instrument=instrument,
         retrieved_at=datetime.now(timezone.utc),
         published_through=published,
@@ -40,84 +118,77 @@ def _snapshot(provider: str, instrument: str, url: str, raw: bytes, published: d
     )
 
 
-def fetch_yahoo_ung() -> FetchedFrame:
-    """Fetch completed daily UNG bars using explicit timestamps."""
-    start = int(datetime(2007, 4, 18, tzinfo=timezone.utc).timestamp())
-    end = int(datetime.now(timezone.utc).timestamp())
-    query = urllib.parse.urlencode({"period1": start, "period2": end, "interval": "1d", "events": "div,splits"})
-    url = f"https://query1.finance.yahoo.com/v8/finance/chart/UNG?{query}"
-    raw = _get(url)
-    try:
-        payload: dict[str, Any] = json.loads(raw)
-        result = payload["chart"]["result"][0]
-        quote = result["indicators"]["quote"][0]
-        frame = pd.DataFrame(
-            {key: quote[key] for key in ("open", "high", "low", "close", "volume")},
-            index=pd.to_datetime(result["timestamp"], unit="s", utc=True).tz_convert(None),
-        ).dropna()
-    except (KeyError, IndexError, TypeError, ValueError) as exc:
-        raise DataValidationError("Yahoo response schema/coverage invalid") from exc
-    frame = validate_ohlcv(frame)
-    today = datetime.now(timezone.utc).date()
-    frame = frame.loc[frame.index.date < today]
+def fetch_alpaca_ung_daily() -> FetchedFrame:
+    """Fetch consolidated completed daily UNG bars using the Alpaca SIP feed.
+
+    The free account can retrieve historical SIP observations once they are more
+    than 15 minutes old. The current incomplete regular session is discarded.
+    """
+    now = datetime.now(timezone.utc)
+    safe_end = now - timedelta(minutes=16)
+    bars, raw, url = _request_bars({
+        "timeframe": "1Day",
+        "start": "2016-01-01T00:00:00Z",
+        "end": safe_end.isoformat().replace("+00:00", "Z"),
+        "feed": "sip",
+        "sort": "asc",
+        "limit": "10000",
+    })
+    frame = _bars_frame(bars)
+    today_et = datetime.now(ET).date()
+    frame = frame.loc[frame.index.date < today_et]
     if len(frame) < 500:
-        raise DataValidationError(f"Yahoo returned too little history: {len(frame)} rows")
+        raise DataValidationError(f"Alpaca returned too little UNG history: {len(frame)} rows")
     latest = frame.index[-1].date()
-    if (today - latest).days > 5:
-        raise DataValidationError(f"Yahoo history is stale: {latest}")
-    return FetchedFrame(frame, _snapshot("yahoo", "UNG", url, raw, latest), raw)
+    if (today_et - latest).days > 5:
+        raise DataValidationError(f"Alpaca UNG daily history is stale: {latest}")
+    return FetchedFrame(frame, _snapshot("UNG", url, raw, latest), raw)
 
 
-def fetch_nasdaq_ung() -> FetchedFrame:
-    """Fetch completed daily UNG bars from Nasdaq's public historical endpoint."""
-    today = datetime.now(timezone.utc).date()
-    query = urllib.parse.urlencode({
-        "assetclass": "etf", "fromdate": "2007-04-18", "todate": today.isoformat(), "limit": "5000"
+def fetch_alpaca_ung_intraday(*, days: int = 7) -> FetchedFrame:
+    """Fetch 1-minute consolidated UNG bars through the delayed snapshot cutoff.
+
+    Schedule this collector at 07:00 ET and 08:45 ET to obtain complete 06:45
+    and 08:30 ET snapshots respectively on the free 15-minute-delayed SIP feed.
+    """
+    now_et = datetime.now(ET)
+    if time(7, 0) <= now_et.time() <= time(7, 25):
+        snapshot_slot, cutoff_time = "mid", time(6, 45)
+    elif time(8, 45) <= now_et.time() <= time(9, 5):
+        snapshot_slot, cutoff_time = "one_hour", time(8, 30)
+    else:
+        raise DataValidationError("outside-RTH fetch runs at 07:00 or 08:45 ET for the 15m delay")
+    cutoff = datetime.combine(now_et.date(), cutoff_time, tzinfo=ET)
+    start = datetime.combine(
+        now_et.date() - timedelta(days=days), time.min, tzinfo=ET
+    ).isoformat()
+    end = cutoff.isoformat()
+    bars, raw, url = _request_bars({
+        "timeframe": "1Min",
+        "start": start,
+        "end": end,
+        "feed": "sip",
+        "sort": "asc",
+        "limit": "10000",
     })
-    url = f"https://api.nasdaq.com/api/quote/UNG/historical?{query}"
-    request = urllib.request.Request(url, headers={
-        "User-Agent": "Mozilla/5.0",
-        "Accept": "application/json, text/plain, */*",
-        "Origin": "https://www.nasdaq.com",
-        "Referer": "https://www.nasdaq.com/",
-    })
-    try:
-        with urllib.request.urlopen(request, timeout=30) as response:
-            raw = response.read()
-        payload = json.loads(raw)
-        rows = payload["data"]["tradesTable"]["rows"]
-        frame = pd.DataFrame(rows)
-        aliases = {"".join(c for c in str(x).lower() if c.isalnum()): x for x in frame.columns}
-        names = {
-            "session": aliases.get("date"), "open": aliases.get("open"),
-            "high": aliases.get("high"), "low": aliases.get("low"),
-            "close": aliases.get("close") or aliases.get("closelast") or aliases.get("lastsaleprice"),
-            "volume": aliases.get("volume"),
-        }
-        if any(value is None for value in names.values()):
-            raise ValueError(f"missing Nasdaq columns: {list(frame.columns)}")
-        frame = frame[[names[key] for key in names]]
-        frame.columns = list(names)
-        frame["session"] = pd.to_datetime(frame["session"], errors="raise").dt.normalize()
-        for column in ("open", "high", "low", "close", "volume"):
-            frame[column] = pd.to_numeric(frame[column].astype(str).str.replace("$", "", regex=False).str.replace(",", "", regex=False), errors="raise")
-        frame = frame.set_index("session").sort_index()
-    except Exception as exc:
-        if isinstance(exc, DataValidationError):
-            raise
-        raise DataValidationError(f"Nasdaq response schema invalid: {exc}") from exc
-    frame = validate_ohlcv(frame)
-    frame = frame.loc[frame.index.date < today]
-    if len(frame) < 500:
-        raise DataValidationError(f"Nasdaq returned too little history: {len(frame)} rows")
-    latest = frame.index[-1].date()
-    if (today - latest).days > 5:
-        raise DataValidationError(f"Nasdaq history is stale: {latest}")
-    return FetchedFrame(frame, _snapshot("nasdaq", "UNG", url, raw, latest), raw)
+    frame = _bars_frame(bars, intraday=True)
+    local_index = frame.index.tz_convert(ET)
+    current_pre = frame.loc[
+        (local_index.date == now_et.date())
+        & (local_index.time >= time(4, 0))
+        & (local_index < pd.Timestamp(cutoff))
+    ]
+    if current_pre.empty:
+        raise DataValidationError(f"Alpaca returned no UNG premarket bars before {cutoff_time} ET")
+    latest_bar_end = current_pre.index[-1] + pd.Timedelta(minutes=1)
+    if pd.Timestamp(cutoff).tz_convert("UTC") - latest_bar_end > pd.Timedelta(minutes=15):
+        raise DataValidationError("Alpaca latest premarket bar is more than 15 minutes stale")
+    snapshot = _snapshot(f"UNG_1m_{snapshot_slot}", url, raw, now_et.date())
+    return FetchedFrame(frame, snapshot, raw)
 
 
 def compare_sources(first: FetchedFrame, second: FetchedFrame, *, tolerance: float = 0.03) -> str:
-    """Require fresh, independent, materially consistent source histories."""
+    """Compare two independent daily OHLCV histories when a second source is configured."""
     if first.snapshot.provider == second.snapshot.provider:
         raise DataValidationError("providers are not independent")
     if first.frame.index[-1] != second.frame.index[-1]:
@@ -128,7 +199,9 @@ def compare_sources(first: FetchedFrame, second: FetchedFrame, *, tolerance: flo
     difference = (common.close_a - common.close_b).abs() / common[["close_a", "close_b"]].abs().max(axis=1)
     if float(difference.median()) > tolerance:
         raise DataValidationError(f"median close disagreement {float(difference.median()):.2%}")
-    latest = abs(float(common.iloc[-1].close_a) - float(common.iloc[-1].close_b)) / max(float(common.iloc[-1].max()), 1e-12)
+    latest = abs(float(common.iloc[-1].close_a) - float(common.iloc[-1].close_b)) / max(
+        float(common.iloc[-1].max()), 1e-12
+    )
     if latest > tolerance:
         raise DataValidationError(f"latest close disagreement {latest:.2%}")
     return f"confirmed {first.frame.index[-1].date()} with {len(common)} overlapping sessions"

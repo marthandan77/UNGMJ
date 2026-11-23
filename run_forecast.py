@@ -2,10 +2,12 @@
 import json
 import os
 import time
-from datetime import datetime, timezone
+from datetime import datetime, time as local_time, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo
 from ung_forecast.ledger import ForecastLedger
-from ung_forecast.providers import fetch_nasdaq_ung
+from ung_forecast.providers import fetch_alpaca_ung_daily, fetch_alpaca_ung_intraday
+from ung_forecast.outside_rth import build_current_outside_rth_snapshot, outside_rth_frame
 from ung_forecast.context_data import (
     combine_context_sources,
     fetch_cftc_positioning,
@@ -22,10 +24,19 @@ from ung_forecast.weights import compute_model_weights
 
 def main() -> None:
     started = time.perf_counter()
-    fetched = fetch_nasdaq_ung()
-    agreement = "Nasdaq primary"
+    if os.getenv("GITHUB_EVENT_NAME") == "schedule":
+        now_et = datetime.now(ZoneInfo("America/New_York"))
+        slot_windows = (
+            (local_time(7, 0), local_time(7, 25)),
+            (local_time(8, 45), local_time(9, 5)),
+        )
+        if not any(start <= now_et.time() <= end for start, end in slot_windows):
+            print(f"Skipping non-study schedule at {now_et.isoformat()}")
+            return
+    fetched = fetch_alpaca_ung_daily()
+    agreement = "Alpaca consolidated SIP"
     data_feeds = [
-        describe_price_feed("Nasdaq UNG", fetched, "Primary UNG OHLCV"),
+        describe_price_feed("Alpaca UNG daily SIP", fetched, "Primary UNG OHLCV"),
     ]
     context = []
     context_status = {}
@@ -69,17 +80,39 @@ def main() -> None:
         ),
     ])
     ledger = ForecastLedger()
+    outside_rth_slot = None
+    try:
+        intraday = fetch_alpaca_ung_intraday()
+        snapshot = build_current_outside_rth_snapshot(intraday.frame, fetched.frame)
+        snapshot["retrieved_at"] = intraday.snapshot.retrieved_at.isoformat()
+        ledger.append_outside_rth_feature(snapshot)
+        outside_rth_slot = snapshot["snapshot_slot"]
+        outside_rth_status = "AVAILABLE"
+        slot_prefix = "mid" if snapshot["snapshot_slot"] == "mid" else "1h"
+        premarket_return = float(snapshot[f"ung_premarket_{slot_prefix}_return"])
+        data_feeds.append({
+            "source": "Alpaca UNG 1-minute extended session (SIP)",
+            "status": outside_rth_status,
+            "latest_observation": snapshot["target_session"],
+            "latest_value": f"{snapshot['snapshot_slot']} premarket return {premarket_return:.3%}",
+            "available_at": snapshot["available_at"],
+            "retrieved_at": snapshot["retrieved_at"],
+            "source_url": intraday.snapshot.source_url,
+            "role": f"{snapshot['snapshot_slot']} pre-open snapshot and prior after-hours features",
+            "note": "15-minute-delayed consolidated SIP OHLCV bars; no bid/ask spread or quote depth.",
+        })
+    except Exception as exc:
+        outside_rth_status = f"UNAVAILABLE: {type(exc).__name__}"
+        data_feeds.append(unavailable_feed(
+            "Alpaca UNG 1-minute extended session (SIP)",
+            f"Pre-open snapshot unavailable ({type(exc).__name__}).",
+        ))
     features_context = combine_context_sources(context)
-    configured_models = tuple(
-        name.strip() for name in os.getenv(
-            "UNG_MODELS", "hist_gradient_boosting"
-        ).split(",") if name.strip()
-    )
+    outside_features = outside_rth_frame(ledger.outside_rth_features())
     # Score completed target sessions before training this run's adaptive layer.
     scored = ledger.score_matured(fetched.frame)
     rows = generate_rolling_forecasts(
-        fetched.frame, context=features_context, ledger=ledger,
-        model_names=configured_models,
+        fetched.frame, context=features_context, outside_rth=outside_features, ledger=ledger,
     )
     purge = ledger.purge()
     report = {
@@ -89,6 +122,8 @@ def main() -> None:
         "provider": fetched.snapshot.provider,
         "agreement": agreement,
         "context": context_status,
+        "outside_rth": outside_rth_status,
+        "outside_rth_slot": outside_rth_slot,
         "data_feeds": data_feeds,
         "latest_session": str(fetched.frame.index[-1].date()),
         "history_rows": len(fetched.frame),

@@ -7,7 +7,10 @@ concurrency:
 on:
   workflow_dispatch:
   schedule:
-    - cron: "30 22 * * 1-5"
+    # Fetch delayed SIP after the 06:45 and 08:30 ET feature cutoffs, with a safety minute.
+    # Paired UTC times cover both daylight and standard time; the runner guard skips the extra run.
+    - cron: "2 11,12 * * 1-5"
+    - cron: "47 12,13 * * 1-5"
 
 permissions:
   contents: write
@@ -15,6 +18,9 @@ permissions:
 jobs:
   forecast:
     runs-on: ubuntu-latest
+    env:
+      APCA_API_KEY_ID: ${{ secrets.APCA_API_KEY_ID }}
+      APCA_API_SECRET_KEY: ${{ secrets.APCA_API_SECRET_KEY }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

@@ -6,7 +6,7 @@ from dataclasses import dataclass
 import math
 import numpy as np
 import pandas as pd
-from sklearn.ensemble import ExtraTreesRegressor, HistGradientBoostingRegressor, RandomForestRegressor
+from sklearn.ensemble import HistGradientBoostingRegressor
 from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline
 
@@ -24,24 +24,13 @@ class ModelForecast:
 
 
 def _model(name: str, quantile: float | None = None) -> Pipeline:
-    if name == "hist_gradient_boosting":
-        estimator = HistGradientBoostingRegressor(
-            loss="quantile" if quantile is not None else "squared_error",
-            quantile=quantile, max_iter=70, learning_rate=0.04,
-            max_leaf_nodes=15, l2_regularization=2.0, random_state=42,
-        )
-    elif name == "random_forest":
-        estimator = RandomForestRegressor(
-            n_estimators=80, min_samples_leaf=5, max_features=0.8,
-            random_state=42, n_jobs=1,
-        )
-    elif name == "extra_trees":
-        estimator = ExtraTreesRegressor(
-            n_estimators=80, min_samples_leaf=5, max_features=0.8,
-            random_state=42, n_jobs=1,
-        )
-    else:
+    if name != "hist_gradient_boosting":
         raise ValueError(f"unknown model: {name}")
+    estimator = HistGradientBoostingRegressor(
+        loss="quantile" if quantile is not None else "squared_error",
+        quantile=quantile, max_iter=70, learning_rate=0.04,
+        max_leaf_nodes=15, l2_regularization=2.0, random_state=42,
+    )
     steps: list[tuple[str, object]] = [("imputer", SimpleImputer(strategy="median", add_indicator=True))]
     steps.append(("model", estimator))
     return Pipeline(steps)
@@ -50,11 +39,18 @@ def _model(name: str, quantile: float | None = None) -> Pipeline:
 def fit_individual_forecast(
     model_name: str, features: pd.DataFrame, targets: pd.DataFrame,
     *, reference_close: float, target_session: str, horizon: int, min_rows: int = 100,
+    feature_columns: list[str] | None = None, expert_name: str | None = None,
 ) -> ModelForecast:
     joined = features.join(targets).dropna(subset=["forward_low_return", "forward_return", "forward_high_return"])
     if len(joined) < min_rows:
         raise ValueError(f"{model_name}: need {min_rows} rows, have {len(joined)}")
-    usable_columns = [column for column in features.columns if joined[column].notna().any()]
+    candidates = feature_columns if feature_columns is not None else list(features.columns)
+    usable_columns = [
+        column for column in candidates
+        if column in features and int(joined[column].notna().sum()) >= min_rows
+    ]
+    if not usable_columns:
+        raise ValueError(f"{model_name}: no usable feature columns")
     x = joined[usable_columns]
     latest = features.iloc[[-1]][usable_columns]
     models = {}
@@ -74,7 +70,7 @@ def fit_individual_forecast(
     probability_up = 0.5 * (1.0 + math.erf(predicted_return / (residual_scale * math.sqrt(2.0))))
     probability_up = float(np.clip(probability_up, 0.01, 0.99))
     uncertainty = float(np.clip(residual_scale + (high - low) / max(close, 1e-6), 0.0, 1.0))
-    return ModelForecast(model_name, horizon, target_session, low, close, high, probability_up, uncertainty)
+    return ModelForecast(expert_name or model_name, horizon, target_session, low, close, high, probability_up, uncertainty)
 
 
 def score_forecast(forecast: dict, actual_low: float, actual_close: float, actual_high: float) -> dict[str, float | bool]:

@@ -2,21 +2,22 @@ from ung_forecast.calibration import calibrate_range
 
 
 def outcome(low=-1.0, high=2.0):
-    return {"model_name": "hist_gradient_boosting", "horizon": 1, "low_error": low, "high_error": high}
+    return {"model_name": "dma_consensus", "horizon": 1, "low_error": low, "high_error": high,
+            "range_contains_day": False}
 
 
 def test_calibration_waits_for_matured_history() -> None:
-    forecast = {"model_name": "hist_gradient_boosting", "horizon": 1, "predicted_low": 10.0, "predicted_high": 12.0}
+    forecast = {"model_name": "dma_consensus", "horizon": 1, "predicted_low": 10.0, "predicted_high": 12.0}
     result = calibrate_range(forecast, [outcome()] * 2)
-    assert result["calibration_status"] == "UNCALIBRATED"
+    assert result["calibration_status"] == "WARMING_UP"
     assert result["predicted_low"] == 10.0
 
 
 def test_calibration_expands_bounds_from_matured_errors() -> None:
-    forecast = {"model_name": "hist_gradient_boosting", "horizon": 1, "predicted_low": 10.0, "predicted_high": 12.0}
+    forecast = {"model_name": "dma_consensus", "horizon": 1, "predicted_low": 10.0, "predicted_high": 12.0}
     # Positive low error means the forecast low was too high; negative high
     # error means the forecast high was too low. Both bounds must widen.
     result = calibrate_range(forecast, [outcome(1.0, -2.0)] * 30)
-    assert result["calibration_status"] == "CALIBRATED"
+    assert result["calibration_status"] == "ADAPTIVE_CONFORMAL"
     assert result["predicted_low"] < 10.0
     assert result["predicted_high"] > 12.0

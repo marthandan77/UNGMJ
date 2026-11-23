@@ -25,10 +25,15 @@ def test_scorecard_is_separate_from_forecast() -> None:
     assert scored["predicted_range_width"] == 2.0
 
 
-def test_tree_models_are_individual_models() -> None:
+def test_only_histogram_gradient_boosting_is_supported() -> None:
     prices = frame()
     features = build_features(prices)
     targets = build_forward_targets(prices, 1)
-    for name in ("hist_gradient_boosting", "random_forest", "extra_trees"):
-        forecast = fit_individual_forecast(name, features, targets, reference_close=279, target_session="2026-12-31", horizon=1)
-        assert forecast.model_name == name
+    forecast = fit_individual_forecast("hist_gradient_boosting", features, targets, reference_close=279, target_session="2026-12-31", horizon=1)
+    assert forecast.model_name == "hist_gradient_boosting"
+    try:
+        fit_individual_forecast("unsupported_model", features, targets, reference_close=279, target_session="2026-12-31", horizon=1)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("non-HistGradientBoosting learners must be rejected")
