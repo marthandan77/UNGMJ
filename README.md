@@ -21,6 +21,11 @@ pytest
 streamlit run streamlit_app.py
 ```
 
+The dashboard itself loads without Alpaca credentials and can display saved forecasts. Alpaca
+keys are needed only when refreshing market data. GitHub hosts this source repository; it does
+not run the interactive Streamlit page. Launch it with the command above or deploy the repository
+to a Streamlit-compatible host.
+
 ## Live data configuration
 
 Set these environment variables in your local shell or deployment secret store; do not commit

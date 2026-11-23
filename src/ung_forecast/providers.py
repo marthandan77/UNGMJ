@@ -29,6 +29,13 @@ def _alpaca_credentials() -> tuple[str, str]:
     return key, secret
 
 
+def alpaca_credentials_configured() -> bool:
+    """Return whether both credential values are present without exposing them."""
+    key = os.getenv("APCA_API_KEY_ID") or os.getenv("ALPACA_API_KEY")
+    secret = os.getenv("APCA_API_SECRET_KEY") or os.getenv("ALPACA_API_SECRET")
+    return bool(key and secret)
+
+
 def _request_bars(params: dict[str, str]) -> tuple[list[dict[str, Any]], bytes, str]:
     key, secret = _alpaca_credentials()
     query = urllib.parse.urlencode(params)
