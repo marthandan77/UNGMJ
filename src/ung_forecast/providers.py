@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+from collections.abc import Mapping
 import urllib.parse
 import urllib.request
 from urllib.error import HTTPError
@@ -27,10 +28,28 @@ def _credential_value(*names: str) -> str | None:
             return value.strip()
     try:
         import streamlit as st
+        secrets = st.secrets
         for name in names:
-            value = st.secrets.get(name)
-            if value:
+            try:
+                value = secrets.get(name)
+            except Exception:
+                value = None
+            if value is not None and str(value).strip():
                 return str(value).strip()
+
+        # Accept credentials stored in a TOML table such as [alpaca] or [api].
+        sections = list(secrets.values())
+        normalized_names = {"".join(c for c in name.lower() if c.isalnum()) for name in names}
+        key_aliases = {"apcaapikeyid", "alpacaapikeyid", "alpacaapikey", "apikeyid", "apikey", "keyid", "key"}
+        secret_aliases = {"apcaapisecretkey", "alpacaapisecretkey", "alpacaapisecret", "apisecretkey", "apisecret", "secretkey", "secret"}
+        aliases = key_aliases if normalized_names & key_aliases else secret_aliases
+        for section in sections:
+            if not isinstance(section, Mapping):
+                continue
+            for field, value in section.items():
+                normalized_field = "".join(c for c in str(field).lower() if c.isalnum())
+                if normalized_field in normalized_names | aliases and value is not None and str(value).strip():
+                    return str(value).strip()
     except Exception:
         # Streamlit secrets are unavailable to CLI jobs unless explicitly configured.
         pass
@@ -42,7 +61,7 @@ def _alpaca_credentials() -> tuple[str, str]:
     secret = _credential_value("APCA_API_SECRET_KEY", "ALPACA_API_SECRET")
     if not key or not secret:
         raise DataValidationError(
-            "Alpaca credentials are required: set APCA_API_KEY_ID and APCA_API_SECRET_KEY"
+            "Could not read both Alpaca credentials from environment variables or Streamlit secrets."
         )
     return key, secret
 
