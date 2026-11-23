@@ -37,19 +37,33 @@ def _credential_value(*names: str) -> str | None:
             if value is not None and str(value).strip():
                 return str(value).strip()
 
-        # Accept credentials stored in a TOML table such as [alpaca] or [api].
-        sections = list(secrets.values())
+        # Streamlit Cloud TOML may expose values at the root or under nested
+        # tables such as [alpaca] or [api]. Never log secret values.
         normalized_names = {"".join(c for c in name.lower() if c.isalnum()) for name in names}
-        key_aliases = {"apcaapikeyid", "alpacaapikeyid", "alpacaapikey", "apikeyid", "apikey", "keyid", "key"}
-        secret_aliases = {"apcaapisecretkey", "alpacaapisecretkey", "alpacaapisecret", "apisecretkey", "apisecret", "secretkey", "secret"}
+        key_aliases = {
+            "apcaapikeyid", "alpacaapikeyid", "alpacaapikey", "apikeyid", "apikey", "keyid", "key",
+        }
+        secret_aliases = {
+            "apcaapisecretkey", "alpacaapisecretkey", "alpacaapisecret", "alpacasecretkey",
+            "apisecretkey", "apisecret", "secretkey", "secret",
+        }
         aliases = key_aliases if normalized_names & key_aliases else secret_aliases
-        for section in sections:
-            if not isinstance(section, Mapping):
-                continue
-            for field, value in section.items():
+
+        def search_table(table: Mapping) -> str | None:
+            for field, value in table.items():
                 normalized_field = "".join(c for c in str(field).lower() if c.isalnum())
-                if normalized_field in normalized_names | aliases and value is not None and str(value).strip():
+                if isinstance(value, Mapping):
+                    nested = search_table(value)
+                    if nested:
+                        return nested
+                elif normalized_field in normalized_names | aliases and value is not None and str(value).strip():
                     return str(value).strip()
+            return None
+
+        if isinstance(secrets, Mapping):
+            value = search_table(secrets)
+            if value:
+                return value
     except Exception:
         # Streamlit secrets are unavailable to CLI jobs unless explicitly configured.
         pass
@@ -57,8 +71,8 @@ def _credential_value(*names: str) -> str | None:
 
 
 def _alpaca_credentials() -> tuple[str, str]:
-    key = _credential_value("APCA_API_KEY_ID", "ALPACA_API_KEY")
-    secret = _credential_value("APCA_API_SECRET_KEY", "ALPACA_API_SECRET")
+    key = _credential_value("APCA_API_KEY_ID", "ALPACA_API_KEY_ID", "ALPACA_API_KEY", "API_KEY_ID", "API_KEY")
+    secret = _credential_value("APCA_API_SECRET_KEY", "ALPACA_API_SECRET_KEY", "ALPACA_API_SECRET", "ALPACA_SECRET_KEY", "API_SECRET_KEY", "API_SECRET")
     if not key or not secret:
         raise DataValidationError(
             "Could not read both Alpaca credentials from environment variables or Streamlit secrets."
