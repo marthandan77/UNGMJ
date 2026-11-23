@@ -32,6 +32,11 @@ Set these environment variables in your local shell or deployment secret store; 
 credentials. For GitHub Actions, add `APCA_API_KEY_ID` and `APCA_API_SECRET_KEY` under the
 repository's **Settings → Secrets and variables → Actions → New repository secret**.
 
+For local Streamlit, copy `.streamlit/secrets.toml.example` to
+`.streamlit/secrets.toml` and replace the placeholders. For Streamlit Community Cloud, paste
+the same TOML entries into the app's **Settings → Secrets**. The app reads either Streamlit
+secrets or the environment variables above.
+
 - `APCA_API_KEY_ID` and `APCA_API_SECRET_KEY` are required for Alpaca US equity data. The
   collector requests consolidated SIP bars after the free feed's 15-minute access window.
 - `EIA_API_KEY` enables official weekly working-gas storage ingestion.

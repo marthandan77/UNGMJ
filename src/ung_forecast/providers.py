@@ -19,9 +19,26 @@ ET = ZoneInfo("America/New_York")
 ALPACA_DATA_URL = "https://data.alpaca.markets/v2/stocks/UNG/bars"
 
 
+def _credential_value(*names: str) -> str | None:
+    for name in names:
+        value = os.getenv(name)
+        if value:
+            return value
+    try:
+        import streamlit as st
+        for name in names:
+            value = st.secrets.get(name)
+            if value:
+                return str(value)
+    except Exception:
+        # Streamlit secrets are unavailable to CLI jobs unless explicitly configured.
+        pass
+    return None
+
+
 def _alpaca_credentials() -> tuple[str, str]:
-    key = os.getenv("APCA_API_KEY_ID") or os.getenv("ALPACA_API_KEY")
-    secret = os.getenv("APCA_API_SECRET_KEY") or os.getenv("ALPACA_API_SECRET")
+    key = _credential_value("APCA_API_KEY_ID", "ALPACA_API_KEY")
+    secret = _credential_value("APCA_API_SECRET_KEY", "ALPACA_API_SECRET")
     if not key or not secret:
         raise DataValidationError(
             "Alpaca credentials are required: set APCA_API_KEY_ID and APCA_API_SECRET_KEY"
@@ -31,8 +48,8 @@ def _alpaca_credentials() -> tuple[str, str]:
 
 def alpaca_credentials_configured() -> bool:
     """Return whether both credential values are present without exposing them."""
-    key = os.getenv("APCA_API_KEY_ID") or os.getenv("ALPACA_API_KEY")
-    secret = os.getenv("APCA_API_SECRET_KEY") or os.getenv("ALPACA_API_SECRET")
+    key = _credential_value("APCA_API_KEY_ID", "ALPACA_API_KEY")
+    secret = _credential_value("APCA_API_SECRET_KEY", "ALPACA_API_SECRET")
     return bool(key and secret)
 
 
