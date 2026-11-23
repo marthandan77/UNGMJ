@@ -21,49 +21,51 @@ ET = ZoneInfo("America/New_York")
 ALPACA_DATA_URL = "https://data.alpaca.markets/v2/stocks/UNG/bars"
 
 
-def _credential_value(*names: str) -> str | None:
-    for name in names:
-        value = os.getenv(name)
-        if value:
-            return value.strip()
+def _clean_secret(value: Any) -> str | None:
+    if value is None:
+        return None
+    cleaned = str(value).strip()
+    return cleaned or None
+
+
+def _streamlit_credential_pair() -> tuple[str, str] | None:
     try:
         import streamlit as st
         secrets = st.secrets
-        for name in names:
-            try:
-                value = secrets.get(name)
-            except Exception:
-                value = None
-            if value is not None and str(value).strip():
-                return str(value).strip()
-
-        # Streamlit Cloud TOML may expose values at the root or under nested
-        # tables such as [alpaca] or [api]. Never log secret values.
-        normalized_names = {"".join(c for c in name.lower() if c.isalnum()) for name in names}
-        key_aliases = {
-            "apcaapikeyid", "alpacaapikeyid", "alpacaapikey", "apikeyid", "apikey", "keyid", "key",
-        }
-        secret_aliases = {
-            "apcaapisecretkey", "alpacaapisecretkey", "alpacaapisecret", "alpacasecretkey",
-            "apisecretkey", "apisecret", "secretkey", "secret",
-        }
-        aliases = key_aliases if normalized_names & key_aliases else secret_aliases
-
-        def search_table(table: Mapping) -> str | None:
-            for field, value in table.items():
-                normalized_field = "".join(c for c in str(field).lower() if c.isalnum())
-                if isinstance(value, Mapping):
-                    nested = search_table(value)
-                    if nested:
-                        return nested
-                elif normalized_field in normalized_names | aliases and value is not None and str(value).strip():
-                    return str(value).strip()
+        if not isinstance(secrets, Mapping):
             return None
 
-        if isinstance(secrets, Mapping):
-            value = search_table(secrets)
-            if value:
-                return value
+        # Look up a matched pair in one location. Arbitrary recursive matches
+        # can accidentally combine unrelated credentials from other tables.
+        aliases = (
+            ("APCA_API_KEY_ID", "APCA_API_SECRET_KEY"),
+            ("ALPACA_API_KEY_ID", "ALPACA_API_SECRET_KEY"),
+            ("ALPACA_API_KEY", "ALPACA_API_SECRET"),
+            ("API_KEY_ID", "API_SECRET_KEY"),
+            ("API_KEY", "API_SECRET"),
+            ("key_id", "secret_key"),
+            ("key", "secret"),
+        )
+
+        def pair_from(table: Mapping) -> tuple[str, str] | None:
+            for key_name, secret_name in aliases:
+                key = _clean_secret(table.get(key_name))
+                secret = _clean_secret(table.get(secret_name))
+                if key and secret:
+                    return key, secret
+            return None
+
+        # Root credentials are the standard Streamlit secrets.toml layout.
+        pair = pair_from(secrets)
+        if pair:
+            return pair
+        # Also accept the common dedicated [alpaca] table layout.
+        for section_name in ("alpaca", "ALPACA"):
+            section = secrets.get(section_name)
+            if isinstance(section, Mapping):
+                pair = pair_from(section)
+                if pair:
+                    return pair
     except Exception:
         # Streamlit secrets are unavailable to CLI jobs unless explicitly configured.
         pass
@@ -71,13 +73,18 @@ def _credential_value(*names: str) -> str | None:
 
 
 def _alpaca_credentials() -> tuple[str, str]:
-    key = _credential_value("APCA_API_KEY_ID", "ALPACA_API_KEY_ID", "ALPACA_API_KEY", "API_KEY_ID", "API_KEY")
-    secret = _credential_value("APCA_API_SECRET_KEY", "ALPACA_API_SECRET_KEY", "ALPACA_API_SECRET", "ALPACA_SECRET_KEY", "API_SECRET_KEY", "API_SECRET")
-    if not key or not secret:
-        raise DataValidationError(
-            "Could not read both Alpaca credentials from environment variables or Streamlit secrets."
-        )
-    return key, secret
+    pair = _streamlit_credential_pair()
+    if pair:
+        return pair
+
+    # Non-Streamlit jobs can configure the standard environment variable pair.
+    key = _clean_secret(os.getenv("APCA_API_KEY_ID"))
+    secret = _clean_secret(os.getenv("APCA_API_SECRET_KEY"))
+    if key and secret:
+        return key, secret
+    raise DataValidationError(
+        "Could not read both Alpaca credentials from environment variables or Streamlit secrets."
+    )
 
 
 def _request_bars(params: dict[str, str]) -> tuple[list[dict[str, Any]], bytes, str]:
