@@ -48,9 +48,13 @@ def _streamlit_credential_pair() -> tuple[str, str] | None:
         )
 
         def pair_from(table: Mapping) -> tuple[str, str] | None:
+            normalized = {
+                "".join(char for char in str(name).lower() if char.isalnum()): value
+                for name, value in table.items()
+            }
             for key_name, secret_name in aliases:
-                key = _clean_secret(table.get(key_name))
-                secret = _clean_secret(table.get(secret_name))
+                key = _clean_secret(normalized.get("".join(c for c in key_name.lower() if c.isalnum())))
+                secret = _clean_secret(normalized.get("".join(c for c in secret_name.lower() if c.isalnum())))
                 if key and secret:
                     return key, secret
             return None
@@ -72,23 +76,23 @@ def _streamlit_credential_pair() -> tuple[str, str] | None:
     return None
 
 
-def _alpaca_credentials() -> tuple[str, str]:
+def _alpaca_credentials() -> tuple[str, str, str]:
     pair = _streamlit_credential_pair()
     if pair:
-        return pair
+        return pair[0], pair[1], "Streamlit secrets"
 
     # Non-Streamlit jobs can configure the standard environment variable pair.
     key = _clean_secret(os.getenv("APCA_API_KEY_ID"))
     secret = _clean_secret(os.getenv("APCA_API_SECRET_KEY"))
     if key and secret:
-        return key, secret
+        return key, secret, "environment variables"
     raise DataValidationError(
         "Could not read both Alpaca credentials from environment variables or Streamlit secrets."
     )
 
 
 def _request_bars(params: dict[str, str]) -> tuple[list[dict[str, Any]], bytes, str]:
-    key, secret = _alpaca_credentials()
+    key, secret, credential_source = _alpaca_credentials()
     query = urllib.parse.urlencode(params)
     url = f"{ALPACA_DATA_URL}?{query}"
     request = urllib.request.Request(url, headers={
@@ -108,7 +112,7 @@ def _request_bars(params: dict[str, str]) -> tuple[list[dict[str, Any]], bytes, 
                 raise DataValidationError(
                     "Alpaca rejected the API credentials (HTTP 401). Check that APCA_API_KEY_ID "
                     "and APCA_API_SECRET_KEY are both correct and belong to the same Alpaca account. "
-                    "Do not use placeholder text or include extra quote characters inside the values."
+                    f"Credential source used: {credential_source}."
                 ) from exc
             if exc.code == 403:
                 raise DataValidationError(
